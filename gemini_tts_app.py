@@ -176,12 +176,24 @@ def main():
         
         # API 金鑰 - 從環境變數讀取預設值
         default_api_key = os.getenv("GEMINI_API_KEY", "")
-        api_key = st.text_input(
-            "Gemini API 金鑰", 
-            type="password", 
-            value=default_api_key,
-            help="請輸入您的 Gemini API 金鑰，或在 .env 檔案中設定 GEMINI_API_KEY"
-        )
+        
+        # 如果有預設金鑰，顯示提示但不顯示實際值
+        if default_api_key:
+            st.success("✅ 已從環境變數載入 API 金鑰")
+            api_key = st.text_input(
+                "Gemini API 金鑰（選填，留空使用環境變數）", 
+                type="password",
+                help="已從 .env 檔案載入 API 金鑰。如需使用其他金鑰，請在此輸入"
+            )
+            # 如果使用者沒有輸入新的金鑰，使用環境變數的金鑰
+            if not api_key:
+                api_key = default_api_key
+        else:
+            api_key = st.text_input(
+                "Gemini API 金鑰", 
+                type="password",
+                help="請輸入您的 Gemini API 金鑰，或在 .env 檔案中設定 GEMINI_API_KEY"
+            )
         
         # 模型選擇
         model_name = st.selectbox(

@@ -7,6 +7,8 @@ from typing import List, Dict, Optional
 import json
 from datetime import datetime
 from dotenv import load_dotenv
+import re
+import file_upload_module
 
 # 載入環境變數
 load_dotenv()
@@ -463,6 +465,13 @@ def main():
         else:  # 多講者模式
             st.subheader("多講者對話設定")
             
+            # 添加檔案上傳選項
+            input_method = st.radio(
+                "輸入方式",
+                ["手動輸入", "上傳檔案"],
+                horizontal=True
+            )
+            
             # 講者數量
             num_speakers = st.number_input("講者數量", min_value=2, max_value=2, value=2)
             
@@ -515,25 +524,68 @@ def main():
                     voice_configs.append(voice_name)
                     speaker_styles.append(style if style != "無" else None)
             
-            # 生成對話提示建議
-            if st.button("生成對話建議"):
-                # 獲取當前文本框的內容
-                current_text = st.session_state.get('multi_text_content', '')
-                prompt_suggestion = generate_prompt_suggestion(
-                    example_category,  # 直接傳遞範例類別
-                    speakers,
-                    current_text
+            # 根據輸入方式顯示不同的介面
+            if input_method == "手動輸入":
+                # 生成對話提示建議
+                if st.button("生成對話建議"):
+                    # 獲取當前文本框的內容
+                    current_text = st.session_state.get('multi_text_content', '')
+                    prompt_suggestion = generate_prompt_suggestion(
+                        example_category,  # 直接傳遞範例類別
+                        speakers,
+                        current_text
+                    )
+                    st.session_state.multi_text_content = prompt_suggestion
+                
+                # 對話內容
+                text_content = st.text_area(
+                    "輸入對話內容",
+                    value=st.session_state.get('multi_text_content', default_text),
+                    height=300,
+                    help=f"格式範例：\n{speakers[0]}：說話內容\n{speakers[1]}：回應內容",
+                    key="multi_text_content"
                 )
-                st.session_state.multi_text_content = prompt_suggestion
             
-            # 對話內容
-            text_content = st.text_area(
-                "輸入對話內容",
-                value=st.session_state.get('multi_text_content', default_text),
-                height=300,
-                help=f"格式範例：\n{speakers[0]}：說話內容\n{speakers[1]}：回應內容",
-                key="multi_text_content"
-            )
+            else:  # 上傳檔案
+                uploaded_file = st.file_uploader(
+                    "選擇檔案",
+                    type=['srt', 'txt', 'text'],
+                    help="支援 SRT 字幕檔或純文字檔案"
+                )
+                
+                if uploaded_file is not None:
+                    # 讀取檔案內容
+                    file_content = uploaded_file.read().decode('utf-8')
+                    
+                    # 處理上傳的檔案
+                    dialogues, original_speakers = file_upload_module.process_uploaded_file(
+                        file_content, uploaded_file.name
+                    )
+                    
+                    # 如果識別到原始講者，更新講者名稱
+                    if original_speakers:
+                        st.info(f"從檔案中識別到講者：{', '.join(original_speakers)}")
+                        # 可以選擇是否使用原始講者名稱
+                        use_original = st.checkbox("使用檔案中的講者名稱", value=True)
+                        if use_original and len(original_speakers) >= 2:
+                            speakers[0] = original_speakers[0]
+                            speakers[1] = original_speakers[1]
+                    
+                    # 格式化對話內容
+                    formatted_text = file_upload_module.format_dialogues_for_display(
+                        dialogues, speakers
+                    )
+                    
+                    # 顯示並允許編輯
+                    text_content = st.text_area(
+                        "編輯對話內容（可選）",
+                        value=formatted_text,
+                        height=300,
+                        help="您可以在此編輯對話內容後再生成語音"
+                    )
+                else:
+                    text_content = ""
+                    st.info("請上傳 SRT 或文字檔案")
     
     with col2:
         st.header("🎯 生成設定")

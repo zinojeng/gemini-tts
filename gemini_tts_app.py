@@ -8,6 +8,7 @@ from datetime import datetime
 from dotenv import load_dotenv
 import file_upload_module
 import voice_preview_widget
+import background_preview_generator
 
 # 載入環境變數
 load_dotenv()
@@ -469,35 +470,6 @@ def main():
         4. 輸入或生成文字內容
         5. 點擊「生成語音」
         """)
-        
-        # 添加預先生成語音預覽的選項
-        if api_key:
-            st.markdown("---")
-            st.markdown("### 🎵 語音預覽設定")
-            
-            # 檢查是否已有預覽檔案
-            existing_previews = sum(1 for f in os.listdir(".")
-                                    if f.startswith("preview_") and f.endswith(".wav"))
-            
-            if existing_previews > 0:
-                st.info(f"已有 {existing_previews} 個語音預覽檔案")
-            
-            if st.checkbox("背景載入所有語音預覽", 
-                           help="在背景靜默生成所有語音預覽，完成後可立即播放",
-                           value=True):  # 預設勾選
-                # 獲取當前語言（從主介面獲取）
-                current_language = st.session_state.get('selected_language', 'zh-TW')
-                
-                # 在背景靜默初始化
-                voice_preview_widget.initialize_voice_previews(
-                    list(VOICE_OPTIONS.keys()),
-                    api_key,
-                    current_language,
-                    model_name,
-                    generate_voice_preview,
-                    save_wave_file,
-                    show_progress=False  # 不顯示進度條
-                )
     
     # 主要內容區域
     col1, col2 = st.columns([2, 1])
@@ -528,6 +500,18 @@ def main():
             
             st.markdown("### 輸出設定")
             output_format = st.selectbox("輸出格式", ["WAV", "PCM"], index=0)
+    
+    # 使用背景預覽生成器確保所有預覽都已準備就緒
+    if api_key:
+        background_preview_generator.ensure_all_previews_ready(
+            list(VOICE_OPTIONS.keys()),
+            api_key,
+            selected_language,
+            model_name,
+            generate_voice_preview,
+            save_wave_file,
+            show_ui=True  # 在側邊欄顯示進度
+        )
     
     with col1:
         st.header("📝 文字內容")

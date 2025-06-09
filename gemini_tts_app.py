@@ -597,37 +597,32 @@ def main():
                     else:
                         default_index = 1  # 第二個講者使用第二個語音 (Puck)
                     
-                    # 語音選擇和預覽
-                    voice_select_col, voice_preview_col = st.columns([3, 1])
+                    # 語音選擇
+                    voice_name = st.selectbox(
+                        f"選擇語音",
+                        options=voice_options,
+                        format_func=lambda x: f"{x} - {VOICE_OPTIONS[x]}",
+                        key=f"voice_{i}",
+                        index=default_index
+                    )
                     
-                    with voice_select_col:
-                        voice_name = st.selectbox(
-                            f"選擇語音",
-                            options=voice_options,
-                            format_func=lambda x: f"{x} - {VOICE_OPTIONS[x]}",
-                            key=f"voice_{i}",
-                            index=default_index
-                        )
-                    
-                    with voice_preview_col:
-                        # 添加一些垂直空間來對齊按鈕
-                        st.markdown("<div style='height: 29px'></div>", unsafe_allow_html=True)
-                        if st.button("🔊", key=f"preview_voice_{i}", help="預覽語音"):
-                            if api_key:
-                                with st.spinner("生成預覽中..."):
-                                    preview_audio = generate_voice_preview(
-                                        api_key, 
-                                        voice_name, 
-                                        selected_language,
-                                        model_name
-                                    )
-                                    if preview_audio:
-                                        # 儲存預覽音訊
-                                        preview_filename = f"preview_{speaker_name}_{voice_name}.wav"
-                                        save_wave_file(preview_filename, preview_audio)
-                                        st.audio(preview_filename)
-                            else:
-                                st.error("請先輸入 API 金鑰")
+                    # 預覽按鈕
+                    if st.button(f"🔊 預覽 {voice_name}", key=f"preview_voice_{i}"):
+                        if api_key:
+                            with st.spinner("生成預覽中..."):
+                                preview_audio = generate_voice_preview(
+                                    api_key, 
+                                    voice_name, 
+                                    selected_language,
+                                    model_name
+                                )
+                                if preview_audio:
+                                    # 儲存預覽音訊
+                                    preview_filename = f"preview_{speaker_name}_{voice_name}.wav"
+                                    save_wave_file(preview_filename, preview_audio)
+                                    st.audio(preview_filename)
+                        else:
+                            st.error("請先輸入 API 金鑰")
                     
                     # 簡化的風格選擇 - 只選擇一個主要風格
                     style = st.selectbox(

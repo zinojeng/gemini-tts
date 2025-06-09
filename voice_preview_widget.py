@@ -115,12 +115,41 @@ def voice_selector_with_preview(
         # 使用更小的按鈕
         st.markdown("<div style='margin-top: 28px;'></div>",
                     unsafe_allow_html=True)
-        if st.button("▶️", key=f"preview_{key_suffix}",
-                     help=f"預覽 {voice_name} 的聲音"):
-            _play_preview_with_placeholder(
-                voice_name, language, api_key, model_name,
-                generate_func, save_func, key_suffix
-            )
+        
+        # 創建一個唯一的 key 來追蹤按鈕點擊
+        button_key = f"preview_{key_suffix}"
+        
+        if st.button("▶️", key=button_key, help=f"預覽 {voice_name} 的聲音"):
+            # 檢查預先生成的檔案
+            preview_dir = "voice_previews"
+            pregenerated_file = f"{preview_dir}/preview_{voice_name}_{language}.wav"
+            
+            # 優先使用預先生成的檔案
+            if os.path.exists(pregenerated_file):
+                # 直接播放預先生成的檔案
+                st.audio(pregenerated_file, format='audio/wav')
+            else:
+                # 如果沒有預先生成的檔案，則使用原有的快取機制
+                preview_key = f"{voice_name}_{language}"
+                cache_file = f"preview_{preview_key}.wav"
+                
+                # 檢查檔案快取
+                if os.path.exists(cache_file):
+                    st.audio(cache_file, format='audio/wav')
+                else:
+                    # 需要生成預覽
+                    with st.spinner("生成中..."):
+                        audio_data = generate_func(
+                            api_key, voice_name, language, model_name
+                        )
+                        
+                        if audio_data:
+                            # 儲存到檔案
+                            save_func(cache_file, audio_data)
+                            # 播放音訊
+                            st.audio(cache_file, format='audio/wav')
+                        else:
+                            st.error("生成預覽失敗")
     
     return voice_name
 

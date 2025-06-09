@@ -807,27 +807,34 @@ def main():
                 # 獲取音訊資料
                 audio_data = response.candidates[0].content.parts[0].inline_data.data
                 
+                # 創建輸出目錄
+                output_dir = "output"
+                if not os.path.exists(output_dir):
+                    os.makedirs(output_dir)
+                
                 # 儲存檔案
                 timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
                 filename = f"gemini_tts_{timestamp}.wav"
+                filepath = os.path.join(output_dir, filename)
                 
                 if output_format == "WAV":
-                    save_wave_file(filename, audio_data, channels, sample_rate)
+                    save_wave_file(filepath, audio_data, channels, sample_rate)
                 else:
                     # 儲存為 PCM
                     filename = f"gemini_tts_{timestamp}.pcm"
-                    with open(filename, "wb") as f:
+                    filepath = os.path.join(output_dir, filename)
+                    with open(filepath, "wb") as f:
                         f.write(audio_data)
                 
-                st.success(f"✅ 語音生成成功！檔案已儲存為：{filename}")
+                st.success(f"✅ 語音生成成功！檔案已儲存為：{filepath}")
                 
                 # 顯示音訊播放器
                 if output_format == "WAV":
-                    st.audio(filename)
+                    st.audio(filepath)
                 
                 # 下載按鈕
                 with col_download:
-                    with open(filename, "rb") as f:
+                    with open(filepath, "rb") as f:
                         st.download_button(
                             label="📥 下載音訊檔案",
                             data=f.read(),
@@ -843,7 +850,7 @@ def main():
                         "模式": tts_mode,
                         "語言": SUPPORTED_LANGUAGES[selected_language],
                         "語音": voice_name if tts_mode == "單一講者" else voice_configs,
-                        "檔案名稱": filename,
+                        "檔案路徑": filepath,
                         "採樣率": sample_rate,
                         "聲道": channels
                     })

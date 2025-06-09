@@ -17,10 +17,14 @@ venv.bak/
 .venv/
 virtualenv/
 
-# 音訊輸出檔案
+# 輸出資料夾
+output/
+
+# 音訊輸出檔案（但不包括 voice_previews 資料夾）
 *.wav
 *.pcm
 *.mp3
+!voice_previews/*.wav
 
 # IDE
 .vscode/

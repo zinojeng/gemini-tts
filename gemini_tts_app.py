@@ -136,7 +136,7 @@ def save_wave_file(filename: str, pcm_data: bytes, channels: int = 1, rate: int 
         wf.setframerate(rate)
         wf.writeframes(pcm_data)
 
-def clean_dialogue_text(text: str, speakers: List[str]) -> str:
+def clean_dialogue_text(text: str, speakers: List[str]) -> tuple:
     """清理多講者對話文本，移除描述性文字，只保留實際對話"""
     lines = text.strip().split('\n')
     cleaned_lines = []
@@ -172,6 +172,31 @@ def clean_dialogue_text(text: str, speakers: List[str]) -> str:
                 break
     
     return '\n'.join(cleaned_lines), speakers
+
+def apply_styles_to_dialogue(text: str, speakers: List[str], speaker_styles: List[List[str]]) -> str:
+    """為每個講者的對話應用各自的風格"""
+    lines = text.strip().split('\n')
+    styled_lines = []
+    
+    for line in lines:
+        line = line.strip()
+        if not line:
+            continue
+        
+        # 檢查是哪個講者的對話
+        for i, speaker in enumerate(speakers):
+            if line.startswith(f"{speaker}：") or line.startswith(f"{speaker}:"):
+                # 如果該講者有風格設定，在講者名稱前加入風格指令
+                if i < len(speaker_styles) and speaker_styles[i]:
+                    style_instruction = f"[{', '.join(speaker_styles[i])}] "
+                    styled_line = f"{style_instruction}{line}"
+                else:
+                    styled_line = line
+                
+                styled_lines.append(styled_line)
+                break
+    
+    return '\n'.join(styled_lines)
 
 def generate_prompt_suggestion(prompt_type: str, speakers: List[str] = None) -> str:
     """生成提示建議"""
@@ -255,6 +280,9 @@ def main():
     # 主要內容區域
     col1, col2 = st.columns([2, 1])
     
+    # 初始化變數
+    selected_styles = []
+    
     with col1:
         st.header("📝 文字內容")
         
@@ -287,7 +315,6 @@ def main():
             # 風格提示
             st.markdown("#### 風格提示建議")
             style_cols = st.columns(4)
-            selected_styles = []
             
             for i, (category, options) in enumerate(STYLE_SUGGESTIONS.items()):
                 with style_cols[i % 4]:
@@ -329,6 +356,7 @@ def main():
             
             speakers = []
             voice_configs = []
+            speaker_styles = []  # 儲存每個講者的風格
             
             # 講者設定
             speaker_cols = st.columns(num_speakers)
@@ -351,8 +379,29 @@ def main():
                         key=f"voice_{i}",
                         index=default_index
                     )
+                    
+                    # 簡化的風格選擇 - 只選擇一個主要風格
+                    style = st.selectbox(
+                        "風格",
+                        ["無", "興奮的", "平靜的", "友善的", "嚴肅的", "幽默的", "溫柔的", "自訂"],
+                        key=f"speaker_{i}_main_style"
+                    )
+                    
+                    # 如果選擇自訂，顯示輸入框
+                    if style == "自訂":
+                        custom_style = st.text_input(
+                            "輸入自訂風格",
+                            placeholder="例如：神秘的、熱情的、疲憊的...",
+                            key=f"speaker_{i}_custom_style"
+                        )
+                        if custom_style:
+                            style = custom_style
+                        else:
+                            style = None
+                    
                     speakers.append(speaker_name)
                     voice_configs.append(voice_name)
+                    speaker_styles.append(style if style != "無" else None)
             
             # 生成對話提示建議
             if st.button("生成對話建議"):
@@ -442,6 +491,22 @@ def main():
                         st.text(cleaned_text)
                         if actual_speakers != speakers:
                             st.info(f"自動識別的講者：{', '.join(actual_speakers)}")
+                        
+                        # 顯示語音配置
+                        st.markdown("---")
+                        st.markdown("**語音配置：**")
+                        for i, (speaker, voice) in enumerate(zip(actual_speakers, voice_configs)):
+                            st.write(f"- {speaker}：{voice}")
+                        
+                        # 顯示風格設定
+                        if any(speaker_styles):
+                            st.markdown("---")
+                            st.markdown("**風格設定：**")
+                            for i, (speaker, style) in enumerate(zip(actual_speakers, speaker_styles)):
+                                if i < len(speaker_styles) and style:
+                                    st.write(f"- {speaker}：{style}")
+                                else:
+                                    st.write(f"- {speaker}：無")
                     
                     speaker_voice_configs = []
                     for i in range(len(actual_speakers)):
@@ -466,7 +531,24 @@ def main():
                     )
                     
                     # 加入提示前綴
-                    prompt = f"TTS 以下對話：\n{cleaned_text}"
+                    # 嘗試在提示中加入風格指令
+                    if any(speaker_styles):
+                        style_lines = []
+                        for i, (speaker, style) in enumerate(zip(actual_speakers, speaker_styles)):
+                            if style:
+                                style_lines.append(f"{speaker}用{style}語氣說話")
+                        
+                        if style_lines:
+                            style_instruction = "；".join(style_lines) + "。"
+                            prompt = f"{style_instruction}\n\n{cleaned_text}"
+                        else:
+                            prompt = f"TTS 以下對話：\n{cleaned_text}"
+                    else:
+                        prompt = f"TTS 以下對話：\n{cleaned_text}"
+                
+                # 顯示最終提示（調試用）
+                with st.expander("調試信息 - 發送給 API 的提示"):
+                    st.text(prompt)
                 
                 # 生成語音
                 response = client.models.generate_content(

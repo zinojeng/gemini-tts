@@ -111,7 +111,7 @@ def voice_selector_with_preview(
             key=f"voice_select_{key_suffix}"
         )
     
-        with col2:
+    with col2:
         # 使用更小的按鈕
         st.markdown("<div style='margin-top: 28px;'></div>",
                     unsafe_allow_html=True)

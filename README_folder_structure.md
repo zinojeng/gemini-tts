@@ -11,7 +11,8 @@ geminitts/
 ├── voice_previews/           # 預先生成的語音預覽檔案
 │   └── preview_*.wav         # 各種語音的預覽檔案
 │
-├── preview_*.wav             # 舊的預覽檔案（將逐步移除）
+├── temp_previews/            # 舊的預覽檔案（暫存）
+│   └── preview_*.wav         # 從根目錄移動過來的舊預覽檔案
 │
 ├── gemini_tts_app.py         # 主應用程式
 ├── voice_preview_widget.py   # 語音預覽小工具
@@ -40,11 +41,21 @@ geminitts/
 - **命名**：`preview_{語音名稱}_{語言代碼}.wav`
 - **Git**：可以選擇提交到倉庫或使用 Git LFS
 
+### temp_previews/
+- **用途**：暫存舊的預覽檔案
+- **內容**：從根目錄移動過來的舊預覽檔案
+- **建議**：可以定期清理或刪除
+- **Git**：已加入 .gitignore，不會被提交
+
 ## 檔案管理建議
 
-1. **定期清理**：output/ 資料夾可能會累積大量檔案，建議定期清理
+1. **定期清理**：
+   - `output/` 資料夾：定期清理生成的 TTS 檔案
+   - `temp_previews/` 資料夾：可以安全刪除
 2. **備份重要檔案**：重要的生成檔案請及時下載或備份
-3. **預覽檔案**：voice_previews/ 中的檔案可以保留，以提供快速預覽功能
+3. **預覽檔案**：
+   - `voice_previews/` 中的檔案應該保留（預先生成的）
+   - `temp_previews/` 中的檔案可以刪除（舊的快取）
 
 ## 遷移說明
 

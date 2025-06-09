@@ -9,6 +9,7 @@ from datetime import datetime
 from dotenv import load_dotenv
 import re
 import file_upload_module
+import voice_preview_widget
 
 # 載入環境變數
 load_dotenv()
@@ -496,35 +497,17 @@ def main():
         if tts_mode == "單一講者":
             st.subheader("單一講者設定")
             
-            # 語音選擇和預覽
-            voice_col1, voice_col2 = st.columns([3, 1])
-            
-            with voice_col1:
-                voice_name = st.selectbox(
-                    "選擇語音",
-                    options=list(VOICE_OPTIONS.keys()),
-                    format_func=lambda x: f"{x} - {VOICE_OPTIONS[x]}"
-                )
-            
-            with voice_col2:
-                # 添加一些垂直空間來對齊按鈕
-                st.markdown("<div style='height: 29px'></div>", unsafe_allow_html=True)
-                if st.button("🔊 預覽", key="preview_single_voice"):
-                    if api_key:
-                        with st.spinner("生成預覽中..."):
-                            preview_audio = generate_voice_preview(
-                                api_key, 
-                                voice_name, 
-                                selected_language,
-                                model_name
-                            )
-                            if preview_audio:
-                                # 儲存預覽音訊
-                                preview_filename = f"preview_{voice_name}.wav"
-                                save_wave_file(preview_filename, preview_audio)
-                                st.audio(preview_filename)
-                    else:
-                        st.error("請先輸入 API 金鑰")
+            # 使用新的語音預覽小工具
+            voice_name = voice_preview_widget.voice_selector_with_preview(
+                "選擇語音",
+                list(VOICE_OPTIONS.keys()),
+                VOICE_OPTIONS,
+                api_key,
+                selected_language,
+                model_name,
+                "single_speaker",
+                default_index=0
+            )
             
             # 風格提示
             st.markdown("#### 風格提示建議")
@@ -569,83 +552,23 @@ def main():
         else:  # 多講者模式
             st.subheader("多講者對話設定")
             
-            # 添加檔案上傳選項
+            # 講者數量
+            num_speakers = st.number_input("講者數量", min_value=2, max_value=2, value=2)
+            
+            # 使用新的多講者語音選擇器
+            speakers, voice_configs, speaker_styles = voice_preview_widget.multi_speaker_voice_selector(
+                num_speakers,
+                api_key,
+                selected_language,
+                model_name
+            )
+            
+            # 根據輸入方式顯示不同的介面
             input_method = st.radio(
                 "輸入方式",
                 ["手動輸入", "上傳檔案"],
                 horizontal=True
             )
-            
-            # 講者數量
-            num_speakers = st.number_input("講者數量", min_value=2, max_value=2, value=2)
-            
-            speakers = []
-            voice_configs = []
-            speaker_styles = []  # 儲存每個講者的風格
-            
-            # 講者設定
-            speaker_cols = st.columns(num_speakers)
-            for i in range(num_speakers):
-                with speaker_cols[i]:
-                    st.markdown(f"#### 講者 {i+1}")
-                    speaker_name = st.text_input(f"講者名稱", value=f"講者{i+1}", key=f"speaker_{i}")
-                    
-                    # 為不同講者設定不同的預設語音
-                    voice_options = list(VOICE_OPTIONS.keys())
-                    if i == 0:
-                        default_index = 0  # 第一個講者使用第一個語音 (Zephyr)
-                    else:
-                        default_index = 1  # 第二個講者使用第二個語音 (Puck)
-                    
-                    # 語音選擇
-                    voice_name = st.selectbox(
-                        f"選擇語音",
-                        options=voice_options,
-                        format_func=lambda x: f"{x} - {VOICE_OPTIONS[x]}",
-                        key=f"voice_{i}",
-                        index=default_index
-                    )
-                    
-                    # 預覽按鈕
-                    if st.button(f"🔊 預覽 {voice_name}", key=f"preview_voice_{i}"):
-                        if api_key:
-                            with st.spinner("生成預覽中..."):
-                                preview_audio = generate_voice_preview(
-                                    api_key, 
-                                    voice_name, 
-                                    selected_language,
-                                    model_name
-                                )
-                                if preview_audio:
-                                    # 儲存預覽音訊
-                                    preview_filename = f"preview_{speaker_name}_{voice_name}.wav"
-                                    save_wave_file(preview_filename, preview_audio)
-                                    st.audio(preview_filename)
-                        else:
-                            st.error("請先輸入 API 金鑰")
-                    
-                    # 簡化的風格選擇 - 只選擇一個主要風格
-                    style = st.selectbox(
-                        "風格",
-                        ["無", "自訂", "興奮的", "平靜的", "友善的", "嚴肅的", "幽默的", "溫柔的"],
-                        key=f"speaker_{i}_main_style"
-                    )
-                    
-                    # 如果選擇自訂，顯示輸入框
-                    if style == "自訂":
-                        custom_style = st.text_input(
-                            "輸入自訂風格",
-                            placeholder="例如：神秘的、熱情的、疲憊的...",
-                            key=f"speaker_{i}_custom_style"
-                        )
-                        if custom_style:
-                            style = custom_style
-                        else:
-                            style = None
-                    
-                    speakers.append(speaker_name)
-                    voice_configs.append(voice_name)
-                    speaker_styles.append(style if style != "無" else None)
             
             # 根據輸入方式顯示不同的介面
             if input_method == "手動輸入":

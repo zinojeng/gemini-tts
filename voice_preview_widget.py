@@ -4,9 +4,7 @@
 """
 
 import streamlit as st
-from typing import List, Dict
-from gemini_tts_app import (generate_voice_preview, save_wave_file, 
-                           VOICE_OPTIONS)
+from typing import List, Dict, Callable
 
 
 def voice_selector_with_preview(
@@ -17,6 +15,8 @@ def voice_selector_with_preview(
     selected_language: str,
     model_name: str,
     key_prefix: str,
+    generate_preview_func: Callable,
+    save_wave_func: Callable,
     default_index: int = 0
 ) -> str:
     """
@@ -30,6 +30,8 @@ def voice_selector_with_preview(
         selected_language: 選擇的語言
         model_name: TTS 模型名稱
         key_prefix: Streamlit 元件的 key 前綴
+        generate_preview_func: 生成預覽的函數
+        save_wave_func: 儲存音訊的函數
         default_index: 預設選項索引
     
     Returns:
@@ -50,8 +52,8 @@ def voice_selector_with_preview(
     
     with col2:
         # 添加垂直空間來對齊按鈕
-        st.markdown("<div style='height: 29px'></div>", 
-                   unsafe_allow_html=True)
+        st.markdown("<div style='height: 29px'></div>",
+                    unsafe_allow_html=True)
         
         # 播放按鈕
         button_help = f"預覽 {selected_voice}"
@@ -59,7 +61,7 @@ def voice_selector_with_preview(
             if api_key:
                 with st.spinner("生成預覽中..."):
                     try:
-                        preview_audio = generate_voice_preview(
+                        preview_audio = generate_preview_func(
                             api_key,
                             selected_voice,
                             selected_language,
@@ -68,7 +70,7 @@ def voice_selector_with_preview(
                         if preview_audio:
                             # 儲存預覽音訊
                             preview_filename = f"preview_{selected_voice}.wav"
-                            save_wave_file(preview_filename, preview_audio)
+                            save_wave_func(preview_filename, preview_audio)
                             
                             # 在當前位置顯示音訊播放器（而不是側邊欄）
                             st.success(f"✅ 預覽生成成功：{selected_voice}")
@@ -96,7 +98,10 @@ def multi_speaker_voice_selector(
     num_speakers: int,
     api_key: str,
     selected_language: str,
-    model_name: str
+    model_name: str,
+    voice_options_dict: Dict[str, str],
+    generate_preview_func: Callable,
+    save_wave_func: Callable
 ) -> tuple:
     """
     為多講者模式創建語音選擇器
@@ -106,6 +111,9 @@ def multi_speaker_voice_selector(
         api_key: Gemini API 金鑰
         selected_language: 選擇的語言
         model_name: TTS 模型名稱
+        voice_options_dict: 語音選項字典
+        generate_preview_func: 生成預覽的函數
+        save_wave_func: 儲存音訊的函數
     
     Returns:
         (speakers, voice_configs, speaker_styles) 元組
@@ -128,24 +136,26 @@ def multi_speaker_voice_selector(
             )
             
             # 語音選擇（使用新的小工具）
-            voice_options = list(VOICE_OPTIONS.keys())
+            voice_options = list(voice_options_dict.keys())
             default_index = 0 if i == 0 else 1  # 不同講者使用不同預設語音
             
             selected_voice = voice_selector_with_preview(
                 "選擇語音",
                 voice_options,
-                VOICE_OPTIONS,
+                voice_options_dict,
                 api_key,
                 selected_language,
                 model_name,
                 f"speaker_{i}_voice",
+                generate_preview_func,
+                save_wave_func,
                 default_index
             )
             
             # 風格選擇
             style = st.selectbox(
                 "風格",
-                ["無", "自訂", "興奮的", "平靜的", "友善的", 
+                ["無", "自訂", "興奮的", "平靜的", "友善的",
                  "嚴肅的", "幽默的", "溫柔的"],
                 key=f"speaker_{i}_main_style"
             )

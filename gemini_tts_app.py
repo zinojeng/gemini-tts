@@ -506,6 +506,8 @@ def main():
                 selected_language,
                 model_name,
                 "single_speaker",
+                generate_voice_preview,
+                save_wave_file,
                 default_index=0
             )
             
@@ -560,7 +562,10 @@ def main():
                 num_speakers,
                 api_key,
                 selected_language,
-                model_name
+                model_name,
+                VOICE_OPTIONS,
+                generate_voice_preview,
+                save_wave_file
             )
             
             # 根據輸入方式顯示不同的介面

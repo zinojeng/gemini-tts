@@ -14,7 +14,8 @@ def initialize_voice_previews(
     selected_language: str,
     model_name: str,
     generate_preview_func: Callable,
-    save_wave_func: Callable
+    save_wave_func: Callable,
+    show_progress: bool = True
 ):
     """
     初始化並預先生成所有語音的預覽
@@ -26,6 +27,7 @@ def initialize_voice_previews(
         model_name: TTS 模型名稱
         generate_preview_func: 生成預覽的函數
         save_wave_func: 儲存音訊的函數
+        show_progress: 是否顯示進度
     """
     if not api_key:
         return
@@ -41,30 +43,53 @@ def initialize_voice_previews(
         st.session_state.preview_language = selected_language
         st.session_state.voice_previews = {}
     
-    # 預先生成所有語音的預覽（只生成尚未生成的）
+    # 計算需要生成的預覽數量
+    previews_to_generate = []
     for voice in voice_options:
         preview_key = f"{voice}_{selected_language}"
+        preview_filename = f"preview_{voice}_{selected_language}.wav"
+        
         if preview_key not in st.session_state.voice_previews:
-            preview_filename = f"preview_{voice}_{selected_language}.wav"
-            
-            # 檢查檔案是否已存在
-            if os.path.exists(preview_filename):
-                st.session_state.voice_previews[preview_key] = preview_filename
+            if not os.path.exists(preview_filename):
+                previews_to_generate.append(
+                    (voice, preview_key, preview_filename)
+                )
             else:
-                # 生成預覽
-                try:
-                    preview_audio = generate_preview_func(
-                        api_key,
-                        voice,
-                        selected_language,
-                        model_name
-                    )
-                    if preview_audio:
-                        save_wave_func(preview_filename, preview_audio)
-                        st.session_state.voice_previews[preview_key] = \
-                            preview_filename
-                except Exception:
-                    pass  # 靜默處理錯誤，避免中斷流程
+                # 檔案已存在，直接加入快取
+                st.session_state.voice_previews[preview_key] = preview_filename
+    
+    # 如果有需要生成的預覽
+    if previews_to_generate and show_progress:
+        progress_bar = st.progress(0)
+        status_text = st.empty()
+    
+    # 預先生成所有語音的預覽
+    for i, (voice, preview_key, preview_filename) in enumerate(
+            previews_to_generate):
+        if show_progress:
+            progress = (i + 1) / len(previews_to_generate)
+            progress_bar.progress(progress)
+            status_text.text(
+                f"正在載入語音 {i+1}/{len(previews_to_generate)}: {voice}"
+            )
+        
+        try:
+            preview_audio = generate_preview_func(
+                api_key,
+                voice,
+                selected_language,
+                model_name
+            )
+            if preview_audio:
+                save_wave_func(preview_filename, preview_audio)
+                st.session_state.voice_previews[preview_key] = preview_filename
+        except Exception:
+            pass  # 靜默處理錯誤，避免中斷流程
+    
+    # 清理進度顯示
+    if previews_to_generate and show_progress:
+        progress_bar.empty()
+        status_text.empty()
 
 
 def voice_selector_with_preview(
@@ -168,29 +193,28 @@ def _play_preview(api_key: str, selected_voice: str, selected_language: str,
         st.session_state.voice_previews[preview_key] = preview_filename
         st.audio(preview_filename)
     else:
-        # 需要生成預覽
-        with st.spinner("生成中..."):
-            try:
-                preview_audio = generate_preview_func(
-                    api_key,
-                    selected_voice,
-                    selected_language,
-                    model_name
-                )
-                if preview_audio:
-                    # 儲存預覽音訊
-                    save_wave_func(preview_filename, preview_audio)
-                    
-                    # 加入快取
-                    if 'voice_previews' not in st.session_state:
-                        st.session_state.voice_previews = {}
-                    st.session_state.voice_previews[preview_key] = \
-                        preview_filename
-                    
-                    # 播放音訊
-                    st.audio(preview_filename)
-            except Exception as e:
-                st.error(f"生成失敗：{str(e)}")
+        # 需要生成預覽 - 不顯示任何提示，直接生成
+        try:
+            preview_audio = generate_preview_func(
+                api_key,
+                selected_voice,
+                selected_language,
+                model_name
+            )
+            if preview_audio:
+                # 儲存預覽音訊
+                save_wave_func(preview_filename, preview_audio)
+                
+                # 加入快取
+                if 'voice_previews' not in st.session_state:
+                    st.session_state.voice_previews = {}
+                st.session_state.voice_previews[preview_key] = \
+                    preview_filename
+                
+                # 播放音訊
+                st.audio(preview_filename)
+        except Exception as e:
+            st.error(f"生成失敗：{str(e)}")
 
 
 def multi_speaker_voice_selector(

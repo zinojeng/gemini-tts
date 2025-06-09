@@ -411,6 +411,20 @@ def main():
     st.title("🎙️ Gemini TTS 多語言文字轉語音系統")
     st.markdown("使用 Google Gemini API 將文字轉換為自然的語音")
     
+    # 在應用程式啟動時自動載入已存在的預覽檔案
+    if 'voice_previews' not in st.session_state:
+        st.session_state.voice_previews = {}
+        # 掃描目錄中的預覽檔案
+        for file in os.listdir("."):
+            if file.startswith("preview_") and file.endswith(".wav"):
+                # 從檔名中提取語音名稱和語言
+                parts = file[8:-4].split("_")  # 移除 "preview_" 和 ".wav"
+                if len(parts) >= 2:
+                    voice_name = parts[0]
+                    language = "_".join(parts[1:])  # 處理語言代碼中的底線
+                    preview_key = f"{voice_name}_{language}"
+                    st.session_state.voice_previews[preview_key] = file
+    
     # 側邊欄設定
     with st.sidebar:
         st.header("⚙️ 設定")
@@ -460,19 +474,30 @@ def main():
         if api_key:
             st.markdown("---")
             st.markdown("### 🎵 語音預覽設定")
-            if st.checkbox("預先載入所有語音預覽", help="勾選後會在背景預先生成所有語音的預覽，之後點擊播放按鈕可以立即播放"):
-                with st.spinner("正在預先載入語音預覽..."):
-                    # 獲取當前語言（需要先定義）
-                    # 這裡暫時使用預設語言，稍後會從主介面獲取
-                    voice_preview_widget.initialize_voice_previews(
-                        list(VOICE_OPTIONS.keys()),
-                        api_key,
-                        "zh-TW",  # 預設語言
-                        model_name,
-                        generate_voice_preview,
-                        save_wave_file
-                    )
-                st.success("✅ 語音預覽已載入完成")
+            
+            # 檢查是否已有預覽檔案
+            existing_previews = sum(1 for f in os.listdir(".")
+                                    if f.startswith("preview_") and f.endswith(".wav"))
+            
+            if existing_previews > 0:
+                st.info(f"已有 {existing_previews} 個語音預覽檔案")
+            
+            if st.checkbox("背景載入所有語音預覽", 
+                           help="在背景靜默生成所有語音預覽，完成後可立即播放",
+                           value=True):  # 預設勾選
+                # 獲取當前語言（從主介面獲取）
+                current_language = st.session_state.get('selected_language', 'zh-TW')
+                
+                # 在背景靜默初始化
+                voice_preview_widget.initialize_voice_previews(
+                    list(VOICE_OPTIONS.keys()),
+                    api_key,
+                    current_language,
+                    model_name,
+                    generate_voice_preview,
+                    save_wave_file,
+                    show_progress=False  # 不顯示進度條
+                )
     
     # 主要內容區域
     col1, col2 = st.columns([2, 1])
@@ -491,6 +516,9 @@ def main():
             format_func=lambda x: SUPPORTED_LANGUAGES[x],
             index=list(SUPPORTED_LANGUAGES.keys()).index("zh-TW")
         )
+        
+        # 儲存選擇的語言到 session_state
+        st.session_state['selected_language'] = selected_language
         
         # 進階設定
         with st.expander("進階設定"):

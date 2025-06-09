@@ -3,11 +3,9 @@ import wave
 import streamlit as st
 from google import genai
 from google.genai import types
-from typing import List, Dict, Optional
-import json
+from typing import List
 from datetime import datetime
 from dotenv import load_dotenv
-import re
 import file_upload_module
 import voice_preview_widget
 
@@ -131,7 +129,9 @@ STYLE_SUGGESTIONS = {
     "特殊效果": ["低聲細語", "大聲喊叫", "帶著笑意", "帶著哭腔"]
 }
 
-def save_wave_file(filename: str, pcm_data: bytes, channels: int = 1, rate: int = 24000, sample_width: int = 2):
+
+def save_wave_file(filename: str, pcm_data: bytes, channels: int = 1,
+                   rate: int = 24000, sample_width: int = 2):
     """儲存 PCM 資料為 WAV 檔案"""
     with wave.open(filename, "wb") as wf:
         wf.setnchannels(channels)
@@ -139,7 +139,11 @@ def save_wave_file(filename: str, pcm_data: bytes, channels: int = 1, rate: int 
         wf.setframerate(rate)
         wf.writeframes(pcm_data)
 
-def generate_voice_preview(api_key: str, voice_name: str, language: str = "zh-TW", model_name: str = "gemini-2.5-flash-preview-tts") -> bytes:
+
+def generate_voice_preview(api_key: str, voice_name: str,
+                           language: str = "zh-TW",
+                           model_name: str = "gemini-2.5-flash-preview-tts"
+                           ) -> bytes:
     """生成語音預覽
     
     Args:
@@ -155,12 +159,16 @@ def generate_voice_preview(api_key: str, voice_name: str, language: str = "zh-TW
     preview_texts = {
         "zh-TW": f"您好，我是 {voice_name}。這是我的聲音預覽，希望您喜歡。",
         "zh-CN": f"您好，我是 {voice_name}。这是我的声音预览，希望您喜欢。",
-        "en-US": f"Hello, I am {voice_name}. This is a preview of my voice. I hope you like it.",
+        "en-US": (f"Hello, I am {voice_name}. This is a preview of my voice. "
+                  f"I hope you like it."),
         "ja-JP": f"こんにちは、私は{voice_name}です。これは私の声のプレビューです。",
         "ko-KR": f"안녕하세요, 저는 {voice_name}입니다. 제 목소리 미리듣기입니다.",
-        "es-US": f"Hola, soy {voice_name}. Esta es una vista previa de mi voz.",
-        "fr-FR": f"Bonjour, je suis {voice_name}. Ceci est un aperçu de ma voix.",
-        "de-DE": f"Hallo, ich bin {voice_name}. Dies ist eine Vorschau meiner Stimme.",
+        "es-US": (f"Hola, soy {voice_name}. Esta es una vista previa de "
+                  f"mi voz."),
+        "fr-FR": (f"Bonjour, je suis {voice_name}. Ceci est un aperçu de "
+                  f"ma voix."),
+        "de-DE": (f"Hallo, ich bin {voice_name}. Dies ist eine Vorschau "
+                  f"meiner Stimme."),
     }
     
     # 如果語言不在預設列表中，使用英文
@@ -447,6 +455,24 @@ def main():
         4. 輸入或生成文字內容
         5. 點擊「生成語音」
         """)
+        
+        # 添加預先生成語音預覽的選項
+        if api_key:
+            st.markdown("---")
+            st.markdown("### 🎵 語音預覽設定")
+            if st.checkbox("預先載入所有語音預覽", help="勾選後會在背景預先生成所有語音的預覽，之後點擊播放按鈕可以立即播放"):
+                with st.spinner("正在預先載入語音預覽..."):
+                    # 獲取當前語言（需要先定義）
+                    # 這裡暫時使用預設語言，稍後會從主介面獲取
+                    voice_preview_widget.initialize_voice_previews(
+                        list(VOICE_OPTIONS.keys()),
+                        api_key,
+                        "zh-TW",  # 預設語言
+                        model_name,
+                        generate_voice_preview,
+                        save_wave_file
+                    )
+                st.success("✅ 語音預覽已載入完成")
     
     # 主要內容區域
     col1, col2 = st.columns([2, 1])

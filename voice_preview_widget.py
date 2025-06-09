@@ -5,6 +5,66 @@
 
 import streamlit as st
 from typing import List, Dict, Callable
+import os
+
+
+def initialize_voice_previews(
+    voice_options: List[str],
+    api_key: str,
+    selected_language: str,
+    model_name: str,
+    generate_preview_func: Callable,
+    save_wave_func: Callable
+):
+    """
+    初始化並預先生成所有語音的預覽
+    
+    Args:
+        voice_options: 語音選項列表
+        api_key: Gemini API 金鑰
+        selected_language: 選擇的語言
+        model_name: TTS 模型名稱
+        generate_preview_func: 生成預覽的函數
+        save_wave_func: 儲存音訊的函數
+    """
+    if not api_key:
+        return
+    
+    # 使用 session_state 來追蹤已生成的預覽
+    if 'voice_previews' not in st.session_state:
+        st.session_state.voice_previews = {}
+    
+    # 檢查語言是否改變，如果改變則清空快取
+    if 'preview_language' not in st.session_state:
+        st.session_state.preview_language = selected_language
+    elif st.session_state.preview_language != selected_language:
+        st.session_state.preview_language = selected_language
+        st.session_state.voice_previews = {}
+    
+    # 預先生成所有語音的預覽（只生成尚未生成的）
+    for voice in voice_options:
+        preview_key = f"{voice}_{selected_language}"
+        if preview_key not in st.session_state.voice_previews:
+            preview_filename = f"preview_{voice}_{selected_language}.wav"
+            
+            # 檢查檔案是否已存在
+            if os.path.exists(preview_filename):
+                st.session_state.voice_previews[preview_key] = preview_filename
+            else:
+                # 生成預覽
+                try:
+                    preview_audio = generate_preview_func(
+                        api_key,
+                        voice,
+                        selected_language,
+                        model_name
+                    )
+                    if preview_audio:
+                        save_wave_func(preview_filename, preview_audio)
+                        st.session_state.voice_previews[preview_key] = \
+                            preview_filename
+                except Exception:
+                    pass  # 靜默處理錯誤，避免中斷流程
 
 
 def voice_selector_with_preview(
@@ -59,10 +119,11 @@ def voice_selector_with_preview(
                         unsafe_allow_html=True)
             
             # 播放按鈕
-            button_help = f"預覽 {selected_voice}"
+            button_help = f"播放 {selected_voice}"
             if st.button("▶️", key=f"{key_prefix}_play", help=button_help):
-                _handle_preview(api_key, selected_voice, selected_language,
-                               model_name, generate_preview_func, save_wave_func)
+                _play_preview(api_key, selected_voice, selected_language,
+                              model_name, generate_preview_func,
+                              save_wave_func)
     else:
         # 不創建 columns，直接顯示元件
         selected_voice = st.selectbox(
@@ -74,21 +135,41 @@ def voice_selector_with_preview(
         )
         
         # 播放按鈕
-        button_help = f"預覽 {selected_voice}"
-        if st.button(f"▶️ 預覽 {selected_voice}", key=f"{key_prefix}_play",
+        button_help = f"播放 {selected_voice}"
+        if st.button(f"▶️ {selected_voice}", key=f"{key_prefix}_play",
                      help=button_help):
-            _handle_preview(api_key, selected_voice, selected_language,
-                           model_name, generate_preview_func, save_wave_func)
+            _play_preview(api_key, selected_voice, selected_language,
+                          model_name, generate_preview_func,
+                          save_wave_func)
     
     return selected_voice
 
 
-def _handle_preview(api_key: str, selected_voice: str, selected_language: str,
-                   model_name: str, generate_preview_func: Callable,
-                   save_wave_func: Callable):
-    """處理預覽邏輯"""
-    if api_key:
-        with st.spinner("生成預覽中..."):
+def _play_preview(api_key: str, selected_voice: str, selected_language: str,
+                  model_name: str, generate_preview_func: Callable,
+                  save_wave_func: Callable):
+    """播放預覽（從快取或即時生成）"""
+    if not api_key:
+        st.error("請先輸入 API 金鑰")
+        return
+    
+    preview_key = f"{selected_voice}_{selected_language}"
+    preview_filename = f"preview_{selected_voice}_{selected_language}.wav"
+    
+    # 檢查是否已有快取
+    if ('voice_previews' in st.session_state and
+            preview_key in st.session_state.voice_previews):
+        # 直接播放快取的檔案
+        st.audio(st.session_state.voice_previews[preview_key])
+    elif os.path.exists(preview_filename):
+        # 檔案存在但不在快取中，加入快取並播放
+        if 'voice_previews' not in st.session_state:
+            st.session_state.voice_previews = {}
+        st.session_state.voice_previews[preview_key] = preview_filename
+        st.audio(preview_filename)
+    else:
+        # 需要生成預覽
+        with st.spinner("生成中..."):
             try:
                 preview_audio = generate_preview_func(
                     api_key,
@@ -98,27 +179,18 @@ def _handle_preview(api_key: str, selected_voice: str, selected_language: str,
                 )
                 if preview_audio:
                     # 儲存預覽音訊
-                    preview_filename = f"preview_{selected_voice}.wav"
                     save_wave_func(preview_filename, preview_audio)
                     
-                    # 在當前位置顯示音訊播放器（而不是側邊欄）
-                    st.success(f"✅ 預覽生成成功：{selected_voice}")
-                    st.audio(preview_filename)
+                    # 加入快取
+                    if 'voice_previews' not in st.session_state:
+                        st.session_state.voice_previews = {}
+                    st.session_state.voice_previews[preview_key] = \
+                        preview_filename
                     
-                    # 更新預覽歷史
-                    if 'preview_history' not in st.session_state:
-                        st.session_state.preview_history = []
-                    if selected_voice not in st.session_state.preview_history:
-                        st.session_state.preview_history.append(
-                            selected_voice
-                        )
-                        # 只保留最近5個
-                        history = st.session_state.preview_history
-                        st.session_state.preview_history = history[-5:]
+                    # 播放音訊
+                    st.audio(preview_filename)
             except Exception as e:
-                st.error(f"預覽生成失敗：{str(e)}")
-    else:
-        st.error("請先輸入 API 金鑰")
+                st.error(f"生成失敗：{str(e)}")
 
 
 def multi_speaker_voice_selector(
@@ -177,7 +249,7 @@ def multi_speaker_voice_selector(
                 generate_preview_func,
                 save_wave_func,
                 default_index,
-                create_columns=False
+                create_columns=False  # 在多講者模式中不創建嵌套的 columns
             )
             
             # 風格選擇

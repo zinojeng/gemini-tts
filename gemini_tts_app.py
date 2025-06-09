@@ -453,6 +453,27 @@ def main():
     # 初始化變數
     selected_styles = []
     
+    # 先定義語言選擇（需要在預覽功能中使用）
+    with col2:
+        st.header("🎯 生成設定")
+        
+        # 語言選擇
+        selected_language = st.selectbox(
+            "選擇語言",
+            options=list(SUPPORTED_LANGUAGES.keys()),
+            format_func=lambda x: SUPPORTED_LANGUAGES[x],
+            index=list(SUPPORTED_LANGUAGES.keys()).index("zh-TW")
+        )
+        
+        # 進階設定
+        with st.expander("進階設定"):
+            st.markdown("### 音訊參數")
+            sample_rate = st.selectbox("採樣率", [24000, 16000, 8000], index=0)
+            channels = st.selectbox("聲道", [1, 2], index=0)
+            
+            st.markdown("### 輸出設定")
+            output_format = st.selectbox("輸出格式", ["WAV", "PCM"], index=0)
+    
     with col1:
         st.header("📝 文字內容")
         
@@ -494,7 +515,7 @@ def main():
                             preview_audio = generate_voice_preview(
                                 api_key, 
                                 voice_name, 
-                                selected_language if 'selected_language' in locals() else "zh-TW",
+                                selected_language,
                                 model_name
                             )
                             if preview_audio:
@@ -597,7 +618,7 @@ def main():
                                     preview_audio = generate_voice_preview(
                                         api_key, 
                                         voice_name, 
-                                        selected_language if 'selected_language' in locals() else "zh-TW",
+                                        selected_language,
                                         model_name
                                     )
                                     if preview_audio:
@@ -693,26 +714,6 @@ def main():
                 else:
                     text_content = ""
                     st.info("請上傳 SRT 或文字檔案")
-    
-    with col2:
-        st.header("🎯 生成設定")
-        
-        # 語言選擇
-        selected_language = st.selectbox(
-            "選擇語言",
-            options=list(SUPPORTED_LANGUAGES.keys()),
-            format_func=lambda x: SUPPORTED_LANGUAGES[x],
-            index=list(SUPPORTED_LANGUAGES.keys()).index("zh-TW")
-        )
-        
-        # 進階設定
-        with st.expander("進階設定"):
-            st.markdown("### 音訊參數")
-            sample_rate = st.selectbox("採樣率", [24000, 16000, 8000], index=0)
-            channels = st.selectbox("聲道", [1, 2], index=0)
-            
-            st.markdown("### 輸出設定")
-            output_format = st.selectbox("輸出格式", ["WAV", "PCM"], index=0)
     
     # 生成按鈕
     st.markdown("---")

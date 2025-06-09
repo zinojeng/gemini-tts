@@ -462,23 +462,6 @@ def main():
         tts_mode = st.radio("TTS 模式", ["單一講者", "多講者對話"])
         
         st.markdown("---")
-        st.markdown("### 📚 使用說明")
-        st.markdown("""
-        1. 輸入您的 Gemini API 金鑰
-        2. 選擇 TTS 模式（單一或多講者）
-        3. 選擇語音和設定參數
-        4. 輸入或生成文字內容
-        5. 點擊「生成語音」
-        """)
-    
-    # 主要內容區域
-    col1, col2 = st.columns([2, 1])
-    
-    # 初始化變數
-    selected_styles = []
-    
-    # 先定義語言選擇（需要在預覽功能中使用）
-    with col2:
         st.header("🎯 生成設定")
         
         # 語言選擇
@@ -500,6 +483,19 @@ def main():
             
             st.markdown("### 輸出設定")
             output_format = st.selectbox("輸出格式", ["WAV", "PCM"], index=0)
+        
+        st.markdown("---")
+        st.markdown("### 📚 使用說明")
+        st.markdown("""
+        1. 輸入您的 Gemini API 金鑰
+        2. 選擇 TTS 模式（單一或多講者）
+        3. 選擇語音和設定參數
+        4. 輸入或生成文字內容
+        5. 點擊「生成語音」
+        """)
+    
+    # 初始化變數
+    selected_styles = []
     
     # 使用背景預覽生成器確保所有預覽都已準備就緒
     if api_key:
@@ -513,168 +509,168 @@ def main():
             show_ui=True  # 在側邊欄顯示進度
         )
     
-    with col1:
-        st.header("📝 文字內容")
+    # 主要內容區域
+    st.header("📝 文字內容")
+    
+    # 提示範例選擇
+    example_category = st.selectbox(
+        "選擇範例類別",
+        ["自訂內容", "播客對話", "有聲書朗讀", "客服對話", "教育內容"]
+    )
+    
+    if example_category != "自訂內容":
+        example_key = example_category
+        if tts_mode == "單一講者":
+            default_text = PROMPT_EXAMPLES[example_key]["single"]
+        else:
+            default_text = PROMPT_EXAMPLES[example_key]["multi"]
+    else:
+        default_text = ""
+    
+    # 文字輸入區域
+    if tts_mode == "單一講者":
+        st.subheader("單一講者設定")
         
-        # 提示範例選擇
-        example_category = st.selectbox(
-            "選擇範例類別",
-            ["自訂內容", "播客對話", "有聲書朗讀", "客服對話", "教育內容"]
+        # 使用新的語音預覽小工具
+        voice_name = voice_preview_widget.voice_selector_with_preview(
+            "選擇語音",
+            list(VOICE_OPTIONS.keys()),
+            VOICE_OPTIONS,
+            api_key,
+            selected_language,
+            model_name,
+            "single_speaker",
+            generate_voice_preview,
+            save_wave_file,
+            default_index=0
         )
         
-        if example_category != "自訂內容":
-            example_key = example_category
-            if tts_mode == "單一講者":
-                default_text = PROMPT_EXAMPLES[example_key]["single"]
-            else:
-                default_text = PROMPT_EXAMPLES[example_key]["multi"]
-        else:
-            default_text = ""
+        # 風格提示
+        st.markdown("#### 風格提示建議")
+        style_cols = st.columns(4)
         
-        # 文字輸入區域
-        if tts_mode == "單一講者":
-            st.subheader("單一講者設定")
-            
-            # 使用新的語音預覽小工具
-            voice_name = voice_preview_widget.voice_selector_with_preview(
-                "選擇語音",
-                list(VOICE_OPTIONS.keys()),
-                VOICE_OPTIONS,
-                api_key,
-                selected_language,
-                model_name,
-                "single_speaker",
-                generate_voice_preview,
-                save_wave_file,
-                default_index=0
+        for i, (category, options) in enumerate(STYLE_SUGGESTIONS.items()):
+            with style_cols[i % 4]:
+                selected = st.selectbox(f"{category}", ["無"] + options)
+                if selected != "無":
+                    selected_styles.append(selected)
+        
+        # 生成提示建議
+        if st.button("生成提示建議"):
+            # 獲取當前文本框的內容
+            current_text = st.session_state.get('single_text_content', '')
+            prompt_suggestion = generate_prompt_suggestion(
+                example_category,  # 直接傳遞範例類別
+                None,
+                current_text
             )
-            
-            # 風格提示
-            st.markdown("#### 風格提示建議")
-            style_cols = st.columns(4)
-            
-            for i, (category, options) in enumerate(STYLE_SUGGESTIONS.items()):
-                with style_cols[i % 4]:
-                    selected = st.selectbox(f"{category}", ["無"] + options)
-                    if selected != "無":
-                        selected_styles.append(selected)
-            
-            # 生成提示建議
-            if st.button("生成提示建議"):
-                # 獲取當前文本框的內容
-                current_text = st.session_state.get('single_text_content', '')
-                prompt_suggestion = generate_prompt_suggestion(
-                    example_category,  # 直接傳遞範例類別
-                    None,
-                    current_text
-                )
-                st.session_state.single_text_content = prompt_suggestion
-            
-            # 文字內容
-            text_content = st.text_area(
-                "輸入文字內容",
-                value=st.session_state.get('single_text_content', default_text),
-                height=200,
-                help="輸入要轉換為語音的文字",
-                key="single_text_content"
-            )
-            
-            # 如果有選擇風格，加入到提示中
-            if selected_styles and text_content:
-                style_prompt = "，".join(selected_styles) + "地說："
-                if not text_content.startswith(style_prompt):
-                    full_prompt = style_prompt + text_content
-                else:
-                    full_prompt = text_content
+            st.session_state.single_text_content = prompt_suggestion
+        
+        # 文字內容
+        text_content = st.text_area(
+            "輸入文字內容",
+            value=st.session_state.get('single_text_content', default_text),
+            height=200,
+            help="輸入要轉換為語音的文字",
+            key="single_text_content"
+        )
+        
+        # 如果有選擇風格，加入到提示中
+        if selected_styles and text_content:
+            style_prompt = "，".join(selected_styles) + "地說："
+            if not text_content.startswith(style_prompt):
+                full_prompt = style_prompt + text_content
             else:
                 full_prompt = text_content
+        else:
+            full_prompt = text_content
+    
+    else:  # 多講者模式
+        st.subheader("多講者對話設定")
         
-        else:  # 多講者模式
-            st.subheader("多講者對話設定")
+        # 講者數量
+        num_speakers = st.number_input("講者數量", min_value=2, max_value=2, value=2)
+        
+        # 使用新的多講者語音選擇器
+        speakers, voice_configs, speaker_styles = voice_preview_widget.multi_speaker_voice_selector(
+            num_speakers,
+            api_key,
+            selected_language,
+            model_name,
+            VOICE_OPTIONS,
+            generate_voice_preview,
+            save_wave_file
+        )
+        
+        # 根據輸入方式顯示不同的介面
+        input_method = st.radio(
+            "輸入方式",
+            ["手動輸入", "上傳檔案"],
+            horizontal=True
+        )
+        
+        # 根據輸入方式顯示不同的介面
+        if input_method == "手動輸入":
+            # 生成對話提示建議
+            if st.button("生成對話建議"):
+                # 獲取當前文本框的內容
+                current_text = st.session_state.get('multi_text_content', '')
+                prompt_suggestion = generate_prompt_suggestion(
+                    example_category,  # 直接傳遞範例類別
+                    speakers,
+                    current_text
+                )
+                st.session_state.multi_text_content = prompt_suggestion
             
-            # 講者數量
-            num_speakers = st.number_input("講者數量", min_value=2, max_value=2, value=2)
-            
-            # 使用新的多講者語音選擇器
-            speakers, voice_configs, speaker_styles = voice_preview_widget.multi_speaker_voice_selector(
-                num_speakers,
-                api_key,
-                selected_language,
-                model_name,
-                VOICE_OPTIONS,
-                generate_voice_preview,
-                save_wave_file
+            # 對話內容
+            text_content = st.text_area(
+                "輸入對話內容",
+                value=st.session_state.get('multi_text_content', default_text),
+                height=300,
+                help=f"格式範例：\n{speakers[0]}：說話內容\n{speakers[1]}：回應內容",
+                key="multi_text_content"
+            )
+        
+        else:  # 上傳檔案
+            uploaded_file = st.file_uploader(
+                "選擇檔案",
+                type=['srt', 'txt', 'text'],
+                help="支援 SRT 字幕檔或純文字檔案"
             )
             
-            # 根據輸入方式顯示不同的介面
-            input_method = st.radio(
-                "輸入方式",
-                ["手動輸入", "上傳檔案"],
-                horizontal=True
-            )
-            
-            # 根據輸入方式顯示不同的介面
-            if input_method == "手動輸入":
-                # 生成對話提示建議
-                if st.button("生成對話建議"):
-                    # 獲取當前文本框的內容
-                    current_text = st.session_state.get('multi_text_content', '')
-                    prompt_suggestion = generate_prompt_suggestion(
-                        example_category,  # 直接傳遞範例類別
-                        speakers,
-                        current_text
-                    )
-                    st.session_state.multi_text_content = prompt_suggestion
+            if uploaded_file is not None:
+                # 讀取檔案內容
+                file_content = uploaded_file.read().decode('utf-8')
                 
-                # 對話內容
+                # 處理上傳的檔案
+                dialogues, original_speakers = file_upload_module.process_uploaded_file(
+                    file_content, uploaded_file.name
+                )
+                
+                # 如果識別到原始講者，更新講者名稱
+                if original_speakers:
+                    st.info(f"從檔案中識別到講者：{', '.join(original_speakers)}")
+                    # 可以選擇是否使用原始講者名稱
+                    use_original = st.checkbox("使用檔案中的講者名稱", value=True)
+                    if use_original and len(original_speakers) >= 2:
+                        speakers[0] = original_speakers[0]
+                        speakers[1] = original_speakers[1]
+                
+                # 格式化對話內容
+                formatted_text = file_upload_module.format_dialogues_for_display(
+                    dialogues, speakers
+                )
+                
+                # 顯示並允許編輯
                 text_content = st.text_area(
-                    "輸入對話內容",
-                    value=st.session_state.get('multi_text_content', default_text),
+                    "編輯對話內容（可選）",
+                    value=formatted_text,
                     height=300,
-                    help=f"格式範例：\n{speakers[0]}：說話內容\n{speakers[1]}：回應內容",
-                    key="multi_text_content"
+                    help="您可以在此編輯對話內容後再生成語音"
                 )
-            
-            else:  # 上傳檔案
-                uploaded_file = st.file_uploader(
-                    "選擇檔案",
-                    type=['srt', 'txt', 'text'],
-                    help="支援 SRT 字幕檔或純文字檔案"
-                )
-                
-                if uploaded_file is not None:
-                    # 讀取檔案內容
-                    file_content = uploaded_file.read().decode('utf-8')
-                    
-                    # 處理上傳的檔案
-                    dialogues, original_speakers = file_upload_module.process_uploaded_file(
-                        file_content, uploaded_file.name
-                    )
-                    
-                    # 如果識別到原始講者，更新講者名稱
-                    if original_speakers:
-                        st.info(f"從檔案中識別到講者：{', '.join(original_speakers)}")
-                        # 可以選擇是否使用原始講者名稱
-                        use_original = st.checkbox("使用檔案中的講者名稱", value=True)
-                        if use_original and len(original_speakers) >= 2:
-                            speakers[0] = original_speakers[0]
-                            speakers[1] = original_speakers[1]
-                    
-                    # 格式化對話內容
-                    formatted_text = file_upload_module.format_dialogues_for_display(
-                        dialogues, speakers
-                    )
-                    
-                    # 顯示並允許編輯
-                    text_content = st.text_area(
-                        "編輯對話內容（可選）",
-                        value=formatted_text,
-                        height=300,
-                        help="您可以在此編輯對話內容後再生成語音"
-                    )
-                else:
-                    text_content = ""
-                    st.info("請上傳 SRT 或文字檔案")
+            else:
+                text_content = ""
+                st.info("請上傳 SRT 或文字檔案")
     
     # 生成按鈕
     st.markdown("---")

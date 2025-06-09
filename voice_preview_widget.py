@@ -190,7 +190,7 @@ def multi_speaker_voice_selector(
     generate_func: Callable,
     save_func: Callable
 ) -> Tuple[List[str], List[str], List[str]]:
-    """多講者語音選擇器
+    """多講者語音選擇器 - 並列顯示版本
     
     Returns:
         (speakers, voice_configs, speaker_styles) 元組
@@ -203,53 +203,57 @@ def multi_speaker_voice_selector(
     style_options = ["無", "自訂", "興奮的", "平靜的", "嚴肅的", "友善的",
                      "神秘的", "幽默的", "溫柔的", "活潑的", "專業的"]
     
+    # 創建兩欄來並列顯示講者
+    cols = st.columns(num_speakers)
+    
     for i in range(num_speakers):
-        st.markdown(f"#### 講者 {i+1}")
-        
-        # 講者名稱
-        speaker_name = st.text_input(
-            "講者名稱",
-            value=f"講者{i+1}",
-            key=f"speaker_name_{i}"
-        )
-        speakers.append(speaker_name)
-        
-        # 語音選擇（帶預覽）
-        voice_name = voice_selector_with_preview(
-            "選擇語音",
-            list(voice_options.keys()),
-            voice_options,
-            api_key,
-            language,
-            model_name,
-            f"speaker_{i}",
-            generate_func,
-            save_func,
-            default_index=i % len(voice_options)
-        )
-        voice_configs.append(voice_name)
-        
-        # 風格選擇
-        style_choice = st.selectbox(
-            "風格設定",
-            options=style_options,
-            key=f"style_{i}"
-        )
-        
-        if style_choice == "自訂":
-            custom_style = st.text_input(
-                "輸入自訂風格",
-                placeholder="例如：溫柔地、激動地",
-                key=f"custom_style_{i}"
+        with cols[i]:
+            st.markdown(f"#### 講者 {i+1}")
+            
+            # 講者名稱
+            speaker_name = st.text_input(
+                "講者名稱",
+                value=f"講者{i+1}",
+                key=f"speaker_name_{i}"
             )
-            if custom_style:
-                speaker_styles.append(custom_style)
+            speakers.append(speaker_name)
+            
+            # 語音選擇（帶預覽）
+            voice_name = voice_selector_with_preview(
+                "選擇語音",
+                list(voice_options.keys()),
+                voice_options,
+                api_key,
+                language,
+                model_name,
+                f"speaker_{i}",
+                generate_func,
+                save_func,
+                default_index=i % len(voice_options)
+            )
+            voice_configs.append(voice_name)
+            
+            # 風格選擇
+            style_choice = st.selectbox(
+                "風格設定",
+                options=style_options,
+                key=f"style_{i}"
+            )
+            
+            if style_choice == "自訂":
+                custom_style = st.text_input(
+                    "輸入自訂風格",
+                    placeholder="例如：溫柔地、激動地",
+                    key=f"custom_style_{i}"
+                )
+                if custom_style:
+                    speaker_styles.append(custom_style)
+                else:
+                    speaker_styles.append("")
+            elif style_choice != "無":
+                speaker_styles.append(style_choice)
             else:
                 speaker_styles.append("")
-        elif style_choice != "無":
-            speaker_styles.append(style_choice)
-        else:
-            speaker_styles.append("")
     
     return speakers, voice_configs, speaker_styles
 

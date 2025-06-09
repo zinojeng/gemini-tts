@@ -138,6 +138,66 @@ def save_wave_file(filename: str, pcm_data: bytes, channels: int = 1, rate: int 
         wf.setframerate(rate)
         wf.writeframes(pcm_data)
 
+def generate_voice_preview(api_key: str, voice_name: str, language: str = "zh-TW", model_name: str = "gemini-2.5-flash-preview-tts") -> bytes:
+    """生成語音預覽
+    
+    Args:
+        api_key: Gemini API 金鑰
+        voice_name: 語音名稱
+        language: 語言代碼
+        model_name: TTS 模型名稱
+    
+    Returns:
+        音訊資料的 bytes
+    """
+    # 根據語言選擇預覽文本
+    preview_texts = {
+        "zh-TW": f"您好，我是 {voice_name}。這是我的聲音預覽，希望您喜歡。",
+        "zh-CN": f"您好，我是 {voice_name}。这是我的声音预览，希望您喜欢。",
+        "en-US": f"Hello, I am {voice_name}. This is a preview of my voice. I hope you like it.",
+        "ja-JP": f"こんにちは、私は{voice_name}です。これは私の声のプレビューです。",
+        "ko-KR": f"안녕하세요, 저는 {voice_name}입니다. 제 목소리 미리듣기입니다.",
+        "es-US": f"Hola, soy {voice_name}. Esta es una vista previa de mi voz.",
+        "fr-FR": f"Bonjour, je suis {voice_name}. Ceci est un aperçu de ma voix.",
+        "de-DE": f"Hallo, ich bin {voice_name}. Dies ist eine Vorschau meiner Stimme.",
+    }
+    
+    # 如果語言不在預設列表中，使用英文
+    preview_text = preview_texts.get(language, preview_texts["en-US"])
+    
+    try:
+        # 初始化 Gemini 客戶端
+        client = genai.Client(api_key=api_key)
+        
+        # 準備生成配置
+        config = types.GenerateContentConfig(
+            response_modalities=["AUDIO"],
+            speech_config=types.SpeechConfig(
+                voice_config=types.VoiceConfig(
+                    prebuilt_voice_config=types.PrebuiltVoiceConfig(
+                        voice_name=voice_name
+                    )
+                )
+            )
+        )
+        
+        # 生成語音
+        response = client.models.generate_content(
+            model=model_name,
+            contents=preview_text,
+            config=config
+        )
+        
+        # 檢查回應是否有效
+        if response and response.candidates and response.candidates[0].content and response.candidates[0].content.parts:
+            return response.candidates[0].content.parts[0].inline_data.data
+        else:
+            return None
+            
+    except Exception as e:
+        st.error(f"生成預覽失敗：{str(e)}")
+        return None
+
 def clean_dialogue_text(text: str, speakers: List[str]) -> tuple:
     """清理多講者對話文本，移除描述性文字，只保留實際對話"""
     lines = text.strip().split('\n')
@@ -415,12 +475,35 @@ def main():
         if tts_mode == "單一講者":
             st.subheader("單一講者設定")
             
-            # 語音選擇
-            voice_name = st.selectbox(
-                "選擇語音",
-                options=list(VOICE_OPTIONS.keys()),
-                format_func=lambda x: f"{x} - {VOICE_OPTIONS[x]}"
-            )
+            # 語音選擇和預覽
+            voice_col1, voice_col2 = st.columns([3, 1])
+            
+            with voice_col1:
+                voice_name = st.selectbox(
+                    "選擇語音",
+                    options=list(VOICE_OPTIONS.keys()),
+                    format_func=lambda x: f"{x} - {VOICE_OPTIONS[x]}"
+                )
+            
+            with voice_col2:
+                # 添加一些垂直空間來對齊按鈕
+                st.markdown("<div style='height: 29px'></div>", unsafe_allow_html=True)
+                if st.button("🔊 預覽", key="preview_single_voice"):
+                    if api_key:
+                        with st.spinner("生成預覽中..."):
+                            preview_audio = generate_voice_preview(
+                                api_key, 
+                                voice_name, 
+                                selected_language if 'selected_language' in locals() else "zh-TW",
+                                model_name
+                            )
+                            if preview_audio:
+                                # 儲存預覽音訊
+                                preview_filename = f"preview_{voice_name}.wav"
+                                save_wave_file(preview_filename, preview_audio)
+                                st.audio(preview_filename)
+                    else:
+                        st.error("請先輸入 API 金鑰")
             
             # 風格提示
             st.markdown("#### 風格提示建議")
@@ -493,13 +576,37 @@ def main():
                     else:
                         default_index = 1  # 第二個講者使用第二個語音 (Puck)
                     
-                    voice_name = st.selectbox(
-                        f"選擇語音",
-                        options=voice_options,
-                        format_func=lambda x: f"{x} - {VOICE_OPTIONS[x]}",
-                        key=f"voice_{i}",
-                        index=default_index
-                    )
+                    # 語音選擇和預覽
+                    voice_select_col, voice_preview_col = st.columns([3, 1])
+                    
+                    with voice_select_col:
+                        voice_name = st.selectbox(
+                            f"選擇語音",
+                            options=voice_options,
+                            format_func=lambda x: f"{x} - {VOICE_OPTIONS[x]}",
+                            key=f"voice_{i}",
+                            index=default_index
+                        )
+                    
+                    with voice_preview_col:
+                        # 添加一些垂直空間來對齊按鈕
+                        st.markdown("<div style='height: 29px'></div>", unsafe_allow_html=True)
+                        if st.button("🔊", key=f"preview_voice_{i}", help="預覽語音"):
+                            if api_key:
+                                with st.spinner("生成預覽中..."):
+                                    preview_audio = generate_voice_preview(
+                                        api_key, 
+                                        voice_name, 
+                                        selected_language if 'selected_language' in locals() else "zh-TW",
+                                        model_name
+                                    )
+                                    if preview_audio:
+                                        # 儲存預覽音訊
+                                        preview_filename = f"preview_{speaker_name}_{voice_name}.wav"
+                                        save_wave_file(preview_filename, preview_audio)
+                                        st.audio(preview_filename)
+                            else:
+                                st.error("請先輸入 API 金鑰")
                     
                     # 簡化的風格選擇 - 只選擇一個主要風格
                     style = st.selectbox(

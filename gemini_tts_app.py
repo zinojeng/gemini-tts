@@ -136,6 +136,43 @@ def save_wave_file(filename: str, pcm_data: bytes, channels: int = 1, rate: int 
         wf.setframerate(rate)
         wf.writeframes(pcm_data)
 
+def clean_dialogue_text(text: str, speakers: List[str]) -> str:
+    """清理多講者對話文本，移除描述性文字，只保留實際對話"""
+    lines = text.strip().split('\n')
+    cleaned_lines = []
+    
+    # 如果講者名稱是預設的"講者1"、"講者2"，嘗試從文本中提取實際的講者名稱
+    actual_speakers = []
+    if speakers == ["講者1", "講者2"]:
+        # 掃描文本找出實際的講者名稱
+        for line in lines:
+            line = line.strip()
+            if '：' in line or ':' in line:
+                # 提取冒號前的部分作為講者名稱
+                parts = line.split('：') if '：' in line else line.split(':')
+                if len(parts) >= 2 and parts[1].strip():  # 確保冒號後有內容
+                    speaker = parts[0].strip()
+                    if speaker and speaker not in actual_speakers:
+                        actual_speakers.append(speaker)
+        
+        # 如果找到實際的講者名稱，使用它們
+        if len(actual_speakers) >= 2:
+            speakers = actual_speakers[:2]
+    
+    # 清理對話文本
+    for line in lines:
+        line = line.strip()
+        if not line:
+            continue
+            
+        # 檢查是否為講者的對話
+        for speaker in speakers:
+            if line.startswith(f"{speaker}：") or line.startswith(f"{speaker}:"):
+                cleaned_lines.append(line)
+                break
+    
+    return '\n'.join(cleaned_lines), speakers
+
 def generate_prompt_suggestion(prompt_type: str, speakers: List[str] = None) -> str:
     """生成提示建議"""
     if prompt_type == "podcast":
@@ -299,11 +336,20 @@ def main():
                 with speaker_cols[i]:
                     st.markdown(f"#### 講者 {i+1}")
                     speaker_name = st.text_input(f"講者名稱", value=f"講者{i+1}", key=f"speaker_{i}")
+                    
+                    # 為不同講者設定不同的預設語音
+                    voice_options = list(VOICE_OPTIONS.keys())
+                    if i == 0:
+                        default_index = 0  # 第一個講者使用第一個語音 (Zephyr)
+                    else:
+                        default_index = 1  # 第二個講者使用第二個語音 (Puck)
+                    
                     voice_name = st.selectbox(
                         f"選擇語音",
-                        options=list(VOICE_OPTIONS.keys()),
+                        options=voice_options,
                         format_func=lambda x: f"{x} - {VOICE_OPTIONS[x]}",
-                        key=f"voice_{i}"
+                        key=f"voice_{i}",
+                        index=default_index
                     )
                     speakers.append(speaker_name)
                     voice_configs.append(voice_name)
@@ -382,11 +428,26 @@ def main():
                     prompt = full_prompt if 'full_prompt' in locals() else text_content
                 else:
                     # 多講者配置
+                    # 清理多講者對話文本
+                    cleaned_text, actual_speakers = clean_dialogue_text(text_content, speakers)
+                    
+                    # 檢查清理後的文本是否為空
+                    if not cleaned_text.strip():
+                        st.error(f"清理後的對話文本為空。請確保對話格式正確，講者名稱後需要有冒號（：）。\n當前講者：{', '.join(speakers)}")
+                        st.info("提示：對話格式應該是「講者名稱：對話內容」")
+                        return
+                    
+                    # 顯示清理後的文本（調試用）
+                    with st.expander("調試信息 - 清理後的對話文本"):
+                        st.text(cleaned_text)
+                        if actual_speakers != speakers:
+                            st.info(f"自動識別的講者：{', '.join(actual_speakers)}")
+                    
                     speaker_voice_configs = []
-                    for i in range(num_speakers):
+                    for i in range(len(actual_speakers)):
                         speaker_voice_configs.append(
                             types.SpeakerVoiceConfig(
-                                speaker=speakers[i],
+                                speaker=actual_speakers[i],
                                 voice_config=types.VoiceConfig(
                                     prebuilt_voice_config=types.PrebuiltVoiceConfig(
                                         voice_name=voice_configs[i]
@@ -405,7 +466,7 @@ def main():
                     )
                     
                     # 加入提示前綴
-                    prompt = f"TTS 以下對話：\n{text_content}"
+                    prompt = f"TTS 以下對話：\n{cleaned_text}"
                 
                 # 生成語音
                 response = client.models.generate_content(
@@ -413,6 +474,16 @@ def main():
                     contents=prompt,
                     config=config
                 )
+                
+                # 檢查回應是否有效
+                if not response or not response.candidates:
+                    st.error("API 未返回有效的回應。請檢查您的輸入內容。")
+                    return
+                
+                if not response.candidates[0].content or not response.candidates[0].content.parts:
+                    st.error("API 回應中沒有音訊資料。可能是因為文本格式不正確或講者名稱不匹配。")
+                    st.info(f"當前講者設定：{speakers}")
+                    return
                 
                 # 獲取音訊資料
                 audio_data = response.candidates[0].content.parts[0].inline_data.data

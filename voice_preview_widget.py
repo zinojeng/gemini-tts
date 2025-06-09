@@ -1,95 +1,74 @@
 """
 語音預覽小工具模組
-提供帶有內嵌播放按鈕的語音選擇功能
+提供整合語音選擇和預覽功能的 Streamlit 元件
 """
 
 import streamlit as st
-from typing import List, Dict, Callable
 import os
+from typing import List, Callable, Dict, Tuple
 
 
-def initialize_voice_previews(
-    voice_options: List[str],
+def _play_preview_with_placeholder(
+    voice_name: str,
+    language: str,
     api_key: str,
-    selected_language: str,
     model_name: str,
-    generate_preview_func: Callable,
-    save_wave_func: Callable,
-    show_progress: bool = True
-):
-    """
-    初始化並預先生成所有語音的預覽
+    generate_func: Callable,
+    save_func: Callable,
+    key_suffix: str
+) -> None:
+    """使用 placeholder 播放預覽，確保音訊播放器在同一位置"""
+    # 創建一個 placeholder 用於音訊播放器
+    audio_placeholder = st.empty()
     
-    Args:
-        voice_options: 語音選項列表
-        api_key: Gemini API 金鑰
-        selected_language: 選擇的語言
-        model_name: TTS 模型名稱
-        generate_preview_func: 生成預覽的函數
-        save_wave_func: 儲存音訊的函數
-        show_progress: 是否顯示進度
-    """
-    if not api_key:
+    # 檢查預先生成的檔案
+    preview_dir = "voice_previews"
+    pregenerated_file = f"{preview_dir}/preview_{voice_name}_{language}.wav"
+    
+    # 優先使用預先生成的檔案
+    if os.path.exists(pregenerated_file):
+        # 直接播放預先生成的檔案
+        with open(pregenerated_file, 'rb') as f:
+            audio_data = f.read()
+        audio_placeholder.audio(audio_data, format='audio/wav')
         return
     
-    # 使用 session_state 來追蹤已生成的預覽
+    # 如果沒有預先生成的檔案，則使用原有的快取機制
+    preview_key = f"{voice_name}_{language}"
+    cache_file = f"preview_{preview_key}.wav"
+    
+    # 檢查記憶體快取
     if 'voice_previews' not in st.session_state:
         st.session_state.voice_previews = {}
     
-    # 檢查語言是否改變，如果改變則清空快取
-    if 'preview_language' not in st.session_state:
-        st.session_state.preview_language = selected_language
-    elif st.session_state.preview_language != selected_language:
-        st.session_state.preview_language = selected_language
-        st.session_state.voice_previews = {}
+    # 如果已有快取，直接播放
+    if preview_key in st.session_state.voice_previews:
+        audio_placeholder.audio(
+            st.session_state.voice_previews[preview_key],
+            format='audio/wav'
+        )
+        return
     
-    # 計算需要生成的預覽數量
-    previews_to_generate = []
-    for voice in voice_options:
-        preview_key = f"{voice}_{selected_language}"
-        preview_filename = f"preview_{voice}_{selected_language}.wav"
-        
-        if preview_key not in st.session_state.voice_previews:
-            if not os.path.exists(preview_filename):
-                previews_to_generate.append(
-                    (voice, preview_key, preview_filename)
-                )
-            else:
-                # 檔案已存在，直接加入快取
-                st.session_state.voice_previews[preview_key] = preview_filename
+    # 檢查檔案快取
+    if os.path.exists(cache_file):
+        with open(cache_file, 'rb') as f:
+            audio_data = f.read()
+        st.session_state.voice_previews[preview_key] = audio_data
+        audio_placeholder.audio(audio_data, format='audio/wav')
+        return
     
-    # 如果有需要生成的預覽
-    if previews_to_generate and show_progress:
-        progress_bar = st.progress(0)
-        status_text = st.empty()
+    # 生成預覽（不顯示任何提示）
+    audio_data = generate_func(
+        api_key, voice_name, language, model_name
+    )
     
-    # 預先生成所有語音的預覽
-    for i, (voice, preview_key, preview_filename) in enumerate(
-            previews_to_generate):
-        if show_progress:
-            progress = (i + 1) / len(previews_to_generate)
-            progress_bar.progress(progress)
-            status_text.text(
-                f"正在載入語音 {i+1}/{len(previews_to_generate)}: {voice}"
-            )
-        
-        try:
-            preview_audio = generate_preview_func(
-                api_key,
-                voice,
-                selected_language,
-                model_name
-            )
-            if preview_audio:
-                save_wave_func(preview_filename, preview_audio)
-                st.session_state.voice_previews[preview_key] = preview_filename
-        except Exception:
-            pass  # 靜默處理錯誤，避免中斷流程
-    
-    # 清理進度顯示
-    if previews_to_generate and show_progress:
-        progress_bar.empty()
-        status_text.empty()
+    if audio_data:
+        # 儲存到檔案
+        save_func(cache_file, audio_data)
+        # 儲存到記憶體快取
+        st.session_state.voice_previews[preview_key] = audio_data
+        # 在 placeholder 中播放音訊
+        audio_placeholder.audio(audio_data, format='audio/wav')
 
 
 def voice_selector_with_preview(
@@ -97,146 +76,65 @@ def voice_selector_with_preview(
     voice_options: List[str],
     voice_descriptions: Dict[str, str],
     api_key: str,
-    selected_language: str,
+    language: str,
     model_name: str,
-    key_prefix: str,
-    generate_preview_func: Callable,
-    save_wave_func: Callable,
-    default_index: int = 0,
-    create_columns: bool = True
+    key_suffix: str,
+    generate_func: Callable,
+    save_func: Callable,
+    default_index: int = 0
 ) -> str:
-    """
-    創建一個帶有預覽播放按鈕的語音選擇器
+    """創建帶有預覽功能的語音選擇器
     
     Args:
         label: 選擇器標籤
         voice_options: 語音選項列表
         voice_descriptions: 語音描述字典
-        api_key: Gemini API 金鑰
-        selected_language: 選擇的語言
-        model_name: TTS 模型名稱
-        key_prefix: Streamlit 元件的 key 前綴
-        generate_preview_func: 生成預覽的函數
-        save_wave_func: 儲存音訊的函數
+        api_key: API 金鑰
+        language: 語言代碼
+        model_name: 模型名稱
+        key_suffix: 用於區分不同選擇器的後綴
+        generate_func: 生成語音預覽的函數
+        save_func: 儲存音訊檔案的函數
         default_index: 預設選項索引
-        create_columns: 是否創建 columns 佈局
     
     Returns:
         選擇的語音名稱
     """
-    if create_columns:
-        # 創建兩欄佈局：選擇器和播放按鈕
-        col1, col2 = st.columns([5, 1])
-        
-        with col1:
-            # 語音選擇器
-            selected_voice = st.selectbox(
-                label,
-                options=voice_options,
-                format_func=lambda x: f"{x} - {voice_descriptions[x]}",
-                key=f"{key_prefix}_select",
-                index=default_index
-            )
-        
-        with col2:
-            # 添加垂直空間來對齊按鈕
-            st.markdown("<div style='height: 29px'></div>",
-                        unsafe_allow_html=True)
-            
-            # 播放按鈕
-            button_help = f"播放 {selected_voice}"
-            if st.button("▶️", key=f"{key_prefix}_play", help=button_help):
-                _play_preview(api_key, selected_voice, selected_language,
-                              model_name, generate_preview_func,
-                              save_wave_func)
-    else:
-        # 不創建 columns，直接顯示元件
-        selected_voice = st.selectbox(
+    col1, col2 = st.columns([5, 1])
+    
+    with col1:
+        voice_name = st.selectbox(
             label,
             options=voice_options,
             format_func=lambda x: f"{x} - {voice_descriptions[x]}",
-            key=f"{key_prefix}_select",
-            index=default_index
+            index=default_index,
+            key=f"voice_select_{key_suffix}"
         )
-        
-        # 播放按鈕
-        button_help = f"播放 {selected_voice}"
-        if st.button(f"▶️ {selected_voice}", key=f"{key_prefix}_play",
-                     help=button_help):
-            _play_preview(api_key, selected_voice, selected_language,
-                          model_name, generate_preview_func,
-                          save_wave_func)
     
-    return selected_voice
-
-
-def _play_preview(api_key: str, selected_voice: str, selected_language: str,
-                  model_name: str, generate_preview_func: Callable,
-                  save_wave_func: Callable):
-    """播放預覽（從快取或即時生成）"""
-    if not api_key:
-        st.error("請先輸入 API 金鑰")
-        return
-    
-    preview_key = f"{selected_voice}_{selected_language}"
-    preview_filename = f"preview_{selected_voice}_{selected_language}.wav"
-    
-    # 檢查是否已有快取
-    if ('voice_previews' in st.session_state and
-            preview_key in st.session_state.voice_previews):
-        # 直接播放快取的檔案
-        st.audio(st.session_state.voice_previews[preview_key])
-    elif os.path.exists(preview_filename):
-        # 檔案存在但不在快取中，加入快取並播放
-        if 'voice_previews' not in st.session_state:
-            st.session_state.voice_previews = {}
-        st.session_state.voice_previews[preview_key] = preview_filename
-        st.audio(preview_filename)
-    else:
-        # 需要生成預覽 - 不顯示任何提示，直接生成
-        try:
-            preview_audio = generate_preview_func(
-                api_key,
-                selected_voice,
-                selected_language,
-                model_name
+        with col2:
+        # 使用更小的按鈕
+        st.markdown("<div style='margin-top: 28px;'></div>",
+                    unsafe_allow_html=True)
+        if st.button("▶️", key=f"preview_{key_suffix}",
+                     help=f"預覽 {voice_name} 的聲音"):
+            _play_preview_with_placeholder(
+                voice_name, language, api_key, model_name,
+                generate_func, save_func, key_suffix
             )
-            if preview_audio:
-                # 儲存預覽音訊
-                save_wave_func(preview_filename, preview_audio)
-                
-                # 加入快取
-                if 'voice_previews' not in st.session_state:
-                    st.session_state.voice_previews = {}
-                st.session_state.voice_previews[preview_key] = \
-                    preview_filename
-                
-                # 播放音訊
-                st.audio(preview_filename)
-        except Exception as e:
-            st.error(f"生成失敗：{str(e)}")
+    
+    return voice_name
 
 
 def multi_speaker_voice_selector(
     num_speakers: int,
     api_key: str,
-    selected_language: str,
+    language: str,
     model_name: str,
-    voice_options_dict: Dict[str, str],
-    generate_preview_func: Callable,
-    save_wave_func: Callable
-) -> tuple:
-    """
-    為多講者模式創建語音選擇器
-    
-    Args:
-        num_speakers: 講者數量
-        api_key: Gemini API 金鑰
-        selected_language: 選擇的語言
-        model_name: TTS 模型名稱
-        voice_options_dict: 語音選項字典
-        generate_preview_func: 生成預覽的函數
-        save_wave_func: 儲存音訊的函數
+    voice_options: Dict[str, str],
+    generate_func: Callable,
+    save_func: Callable
+) -> Tuple[List[str], List[str], List[str]]:
+    """多講者語音選擇器
     
     Returns:
         (speakers, voice_configs, speaker_styles) 元組
@@ -245,60 +143,57 @@ def multi_speaker_voice_selector(
     voice_configs = []
     speaker_styles = []
     
-    speaker_cols = st.columns(num_speakers)
+    # 風格選項
+    style_options = ["無", "自訂", "興奮的", "平靜的", "嚴肅的", "友善的",
+                     "神秘的", "幽默的", "溫柔的", "活潑的", "專業的"]
     
     for i in range(num_speakers):
-        with speaker_cols[i]:
-            st.markdown(f"#### 講者 {i+1}")
-            
-            # 講者名稱
-            speaker_name = st.text_input(
-                "講者名稱",
-                value=f"講者{i+1}",
-                key=f"speaker_{i}"
+        st.markdown(f"#### 講者 {i+1}")
+        
+        # 講者名稱
+        speaker_name = st.text_input(
+            "講者名稱",
+            value=f"講者{i+1}",
+            key=f"speaker_name_{i}"
+        )
+        speakers.append(speaker_name)
+        
+        # 語音選擇（帶預覽）
+        voice_name = voice_selector_with_preview(
+            "選擇語音",
+            list(voice_options.keys()),
+            voice_options,
+            api_key,
+            language,
+            model_name,
+            f"speaker_{i}",
+            generate_func,
+            save_func,
+            default_index=i % len(voice_options)
+        )
+        voice_configs.append(voice_name)
+        
+        # 風格選擇
+        style_choice = st.selectbox(
+            "風格設定",
+            options=style_options,
+            key=f"style_{i}"
+        )
+        
+        if style_choice == "自訂":
+            custom_style = st.text_input(
+                "輸入自訂風格",
+                placeholder="例如：溫柔地、激動地",
+                key=f"custom_style_{i}"
             )
-            
-            # 語音選擇（使用新的小工具）
-            voice_options = list(voice_options_dict.keys())
-            default_index = 0 if i == 0 else 1  # 不同講者使用不同預設語音
-            
-            selected_voice = voice_selector_with_preview(
-                "選擇語音",
-                voice_options,
-                voice_options_dict,
-                api_key,
-                selected_language,
-                model_name,
-                f"speaker_{i}_voice",
-                generate_preview_func,
-                save_wave_func,
-                default_index,
-                create_columns=False  # 在多講者模式中不創建嵌套的 columns
-            )
-            
-            # 風格選擇
-            style = st.selectbox(
-                "風格",
-                ["無", "自訂", "興奮的", "平靜的", "友善的",
-                 "嚴肅的", "幽默的", "溫柔的"],
-                key=f"speaker_{i}_main_style"
-            )
-            
-            # 自訂風格輸入
-            if style == "自訂":
-                custom_style = st.text_input(
-                    "輸入自訂風格",
-                    placeholder="例如：神秘的、熱情的、疲憊的...",
-                    key=f"speaker_{i}_custom_style"
-                )
-                if custom_style:
-                    style = custom_style
-                else:
-                    style = None
-            
-            speakers.append(speaker_name)
-            voice_configs.append(selected_voice)
-            speaker_styles.append(style if style != "無" else None)
+            if custom_style:
+                speaker_styles.append(custom_style)
+            else:
+                speaker_styles.append("")
+        elif style_choice != "無":
+            speaker_styles.append(style_choice)
+        else:
+            speaker_styles.append("")
     
     return speakers, voice_configs, speaker_styles
 

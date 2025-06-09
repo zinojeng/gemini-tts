@@ -17,7 +17,8 @@ def voice_selector_with_preview(
     key_prefix: str,
     generate_preview_func: Callable,
     save_wave_func: Callable,
-    default_index: int = 0
+    default_index: int = 0,
+    create_columns: bool = True
 ) -> str:
     """
     創建一個帶有預覽播放按鈕的語音選擇器
@@ -33,15 +34,37 @@ def voice_selector_with_preview(
         generate_preview_func: 生成預覽的函數
         save_wave_func: 儲存音訊的函數
         default_index: 預設選項索引
+        create_columns: 是否創建 columns 佈局
     
     Returns:
         選擇的語音名稱
     """
-    # 創建兩欄佈局：選擇器和播放按鈕
-    col1, col2 = st.columns([5, 1])
-    
-    with col1:
-        # 語音選擇器
+    if create_columns:
+        # 創建兩欄佈局：選擇器和播放按鈕
+        col1, col2 = st.columns([5, 1])
+        
+        with col1:
+            # 語音選擇器
+            selected_voice = st.selectbox(
+                label,
+                options=voice_options,
+                format_func=lambda x: f"{x} - {voice_descriptions[x]}",
+                key=f"{key_prefix}_select",
+                index=default_index
+            )
+        
+        with col2:
+            # 添加垂直空間來對齊按鈕
+            st.markdown("<div style='height: 29px'></div>",
+                        unsafe_allow_html=True)
+            
+            # 播放按鈕
+            button_help = f"預覽 {selected_voice}"
+            if st.button("▶️", key=f"{key_prefix}_play", help=button_help):
+                _handle_preview(api_key, selected_voice, selected_language,
+                               model_name, generate_preview_func, save_wave_func)
+    else:
+        # 不創建 columns，直接顯示元件
         selected_voice = st.selectbox(
             label,
             options=voice_options,
@@ -49,49 +72,53 @@ def voice_selector_with_preview(
             key=f"{key_prefix}_select",
             index=default_index
         )
-    
-    with col2:
-        # 添加垂直空間來對齊按鈕
-        st.markdown("<div style='height: 29px'></div>",
-                    unsafe_allow_html=True)
         
         # 播放按鈕
         button_help = f"預覽 {selected_voice}"
-        if st.button("▶️", key=f"{key_prefix}_play", help=button_help):
-            if api_key:
-                with st.spinner("生成預覽中..."):
-                    try:
-                        preview_audio = generate_preview_func(
-                            api_key,
-                            selected_voice,
-                            selected_language,
-                            model_name
-                        )
-                        if preview_audio:
-                            # 儲存預覽音訊
-                            preview_filename = f"preview_{selected_voice}.wav"
-                            save_wave_func(preview_filename, preview_audio)
-                            
-                            # 在當前位置顯示音訊播放器（而不是側邊欄）
-                            st.success(f"✅ 預覽生成成功：{selected_voice}")
-                            st.audio(preview_filename)
-                            
-                            # 更新預覽歷史
-                            if 'preview_history' not in st.session_state:
-                                st.session_state.preview_history = []
-                            if selected_voice not in st.session_state.preview_history:
-                                st.session_state.preview_history.append(
-                                    selected_voice
-                                )
-                                # 只保留最近5個
-                                history = st.session_state.preview_history
-                                st.session_state.preview_history = history[-5:]
-                    except Exception as e:
-                        st.error(f"預覽生成失敗：{str(e)}")
-            else:
-                st.error("請先輸入 API 金鑰")
+        if st.button(f"▶️ 預覽 {selected_voice}", key=f"{key_prefix}_play",
+                     help=button_help):
+            _handle_preview(api_key, selected_voice, selected_language,
+                           model_name, generate_preview_func, save_wave_func)
     
     return selected_voice
+
+
+def _handle_preview(api_key: str, selected_voice: str, selected_language: str,
+                   model_name: str, generate_preview_func: Callable,
+                   save_wave_func: Callable):
+    """處理預覽邏輯"""
+    if api_key:
+        with st.spinner("生成預覽中..."):
+            try:
+                preview_audio = generate_preview_func(
+                    api_key,
+                    selected_voice,
+                    selected_language,
+                    model_name
+                )
+                if preview_audio:
+                    # 儲存預覽音訊
+                    preview_filename = f"preview_{selected_voice}.wav"
+                    save_wave_func(preview_filename, preview_audio)
+                    
+                    # 在當前位置顯示音訊播放器（而不是側邊欄）
+                    st.success(f"✅ 預覽生成成功：{selected_voice}")
+                    st.audio(preview_filename)
+                    
+                    # 更新預覽歷史
+                    if 'preview_history' not in st.session_state:
+                        st.session_state.preview_history = []
+                    if selected_voice not in st.session_state.preview_history:
+                        st.session_state.preview_history.append(
+                            selected_voice
+                        )
+                        # 只保留最近5個
+                        history = st.session_state.preview_history
+                        st.session_state.preview_history = history[-5:]
+            except Exception as e:
+                st.error(f"預覽生成失敗：{str(e)}")
+    else:
+        st.error("請先輸入 API 金鑰")
 
 
 def multi_speaker_voice_selector(
@@ -149,7 +176,8 @@ def multi_speaker_voice_selector(
                 f"speaker_{i}_voice",
                 generate_preview_func,
                 save_wave_func,
-                default_index
+                default_index,
+                create_columns=False
             )
             
             # 風格選擇

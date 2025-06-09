@@ -198,33 +198,141 @@ def apply_styles_to_dialogue(text: str, speakers: List[str], speaker_styles: Lis
     
     return '\n'.join(styled_lines)
 
-def generate_prompt_suggestion(prompt_type: str, speakers: List[str] = None) -> str:
-    """生成提示建議"""
+def generate_prompt_suggestion(prompt_type: str, speakers: List[str] = None, existing_text: str = "") -> str:
+    """生成提示建議，可以在現有文本基礎上添加更多內容"""
+    # 將範例類別映射到提示類型
+    type_mapping = {
+        "播客對話": "podcast",
+        "有聲書朗讀": "audiobook", 
+        "客服對話": "customer_service",
+        "教育內容": "education"
+    }
+    
+    # 如果傳入的是中文類別名稱，轉換為英文
+    if prompt_type in type_mapping:
+        prompt_type = type_mapping[prompt_type]
+    
     if prompt_type == "podcast":
         if speakers:
-            return f"""製作一段播客對話，{speakers[0]}是主持人，{speakers[1]}是嘉賓：
+            if not existing_text:
+                return f"""製作一段播客對話，{speakers[0]}是主持人，{speakers[1]}是嘉賓：
 {speakers[0]}：歡迎來到我們的節目！
 {speakers[1]}：謝謝邀請，很高興來到這裡。"""
+            else:
+                # 根據現有內容長度生成不同的後續對話
+                lines = existing_text.strip().split('\n')
+                dialogue_count = len([l for l in lines if '：' in l or ':' in l])
+                
+                if dialogue_count < 6:
+                    return existing_text + f"""
+{speakers[0]}：今天我們要討論的主題非常有趣。
+{speakers[1]}：是的，我對這個話題也很感興趣。"""
+                elif dialogue_count < 10:
+                    return existing_text + f"""
+{speakers[0]}：能否分享一下您的經驗？
+{speakers[1]}：當然，我記得有一次特別的經歷...
+{speakers[0]}：聽起來很精彩！"""
+                else:
+                    return existing_text + f"""
+{speakers[1]}：總結來說，這是一個很有意義的討論。
+{speakers[0]}：非常感謝您今天的分享！
+{speakers[1]}：謝謝您的邀請，期待下次再見！"""
         else:
-            return "用熱情的播客主持人語氣說：歡迎各位聽眾！今天我們有一個超級精彩的話題要和大家分享。"
+            if not existing_text:
+                return "用熱情的播客主持人語氣說：歡迎各位聽眾！今天我們有一個超級精彩的話題要和大家分享。"
+            else:
+                return existing_text + " 讓我們深入探討這個話題，看看它如何影響我們的日常生活。"
     
     elif prompt_type == "audiobook":
         if speakers:
-            return f"""朗讀一段小說，包含旁白和角色對話：
+            if not existing_text:
+                return f"""朗讀一段小說，包含旁白和角色對話：
 旁白：夜幕降臨，城市的燈光逐漸亮起。
 {speakers[0]}：我們必須在天亮前找到答案。
 {speakers[1]}：我知道一個地方，也許能找到線索。"""
+            else:
+                lines = existing_text.strip().split('\n')
+                dialogue_count = len([l for l in lines if '：' in l or ':' in l])
+                
+                if dialogue_count < 6:
+                    return existing_text + f"""
+旁白：他們快步走向那座古老的建築。
+{speakers[0]}：你確定是這裡嗎？
+{speakers[1]}：相信我，線索就在裡面。"""
+                elif dialogue_count < 10:
+                    return existing_text + f"""
+旁白：推開沉重的大門，一股神秘的氣息撲面而來。
+{speakers[0]}：這裡看起來很久沒人來過了。
+{speakers[1]}：小心，我們不知道會遇到什麼。"""
+                else:
+                    return existing_text + f"""
+旁白：終於，他們找到了一直在尋找的東西。
+{speakers[0]}：原來答案一直在這裡！
+{speakers[1]}：是的，一切都說得通了。"""
         else:
-            return "用沉穩的敘事語氣朗讀：很久很久以前，在一個遙遠的王國裡，住著一位勇敢的騎士。"
+            if not existing_text:
+                return "用沉穩的敘事語氣朗讀：很久很久以前，在一個遙遠的王國裡，住著一位勇敢的騎士。"
+            else:
+                return existing_text + " 他的冒險故事傳遍了整個王國，激勵著無數年輕人追求自己的夢想。"
+    
+    elif prompt_type == "customer_service":
+        if speakers:
+            if not existing_text:
+                return f"""客服和顧客的對話：
+{speakers[0]}：您好，很高興為您服務，請問有什麼可以幫助您的嗎？
+{speakers[1]}：我想詢問一下關於產品退換貨的政策。"""
+            else:
+                lines = existing_text.strip().split('\n')
+                dialogue_count = len([l for l in lines if '：' in l or ':' in l])
+                
+                if dialogue_count < 6:
+                    return existing_text + f"""
+{speakers[0]}：當然可以，我們的退換貨政策是30天內無條件退換。
+{speakers[1]}：那需要保留原包裝嗎？"""
+                elif dialogue_count < 10:
+                    return existing_text + f"""
+{speakers[0]}：是的，請盡量保持商品的原始包裝和配件完整。
+{speakers[1]}：好的，我明白了。還有其他注意事項嗎？
+{speakers[0]}：請記得攜帶購買憑證，這樣處理會更快速。"""
+                else:
+                    return existing_text + f"""
+{speakers[1]}：非常感謝您的詳細說明！
+{speakers[0]}：不客氣，還有其他問題嗎？
+{speakers[1]}：沒有了，謝謝您的幫助！"""
+        else:
+            return "用專業友善的客服語氣說：歡迎致電客戶服務中心，我是您的專屬客服代表。"
     
     elif prompt_type == "education":
         if speakers:
-            return f"""教學對話：
+            if not existing_text:
+                return f"""教學對話：
 {speakers[0]}：今天我們要學習的主題是人工智慧。
 {speakers[1]}：老師，AI和機器學習有什麼區別嗎？
 {speakers[0]}：很好的問題！讓我來解釋一下。"""
+            else:
+                lines = existing_text.strip().split('\n')
+                dialogue_count = len([l for l in lines if '：' in l or ':' in l])
+                
+                if dialogue_count < 6:
+                    return existing_text + f"""
+{speakers[0]}：AI是一個更廣泛的概念，包含了機器學習。
+{speakers[1]}：那深度學習又是什麼呢？
+{speakers[0]}：深度學習是機器學習的一個子集。"""
+                elif dialogue_count < 10:
+                    return existing_text + f"""
+{speakers[1]}：能舉個實際的例子嗎？
+{speakers[0]}：當然！比如語音識別就是一個很好的例子。
+{speakers[1]}：原來如此，我開始理解了！"""
+                else:
+                    return existing_text + f"""
+{speakers[0]}：今天的課程就到這裡，有問題嗎？
+{speakers[1]}：謝謝老師，講解得很清楚！
+{speakers[0]}：很高興能幫助你們理解這個概念。"""
         else:
-            return "用清晰的教學語氣說：歡迎來到今天的課程。我們將學習如何使用人工智慧技術來解決實際問題。"
+            if not existing_text:
+                return "用清晰的教學語氣說：歡迎來到今天的課程。我們將學習如何使用人工智慧技術來解決實際問題。"
+            else:
+                return existing_text + " 接下來，讓我們通過一些實際案例來深入理解這些概念。"
     
     return ""
 
@@ -324,18 +432,22 @@ def main():
             
             # 生成提示建議
             if st.button("生成提示建議"):
+                # 獲取當前文本框的內容
+                current_text = st.session_state.get('single_text_content', '')
                 prompt_suggestion = generate_prompt_suggestion(
-                    "podcast" if example_category == "播客對話" else "audiobook",
-                    None
+                    example_category,  # 直接傳遞範例類別
+                    None,
+                    current_text
                 )
-                default_text = prompt_suggestion
+                st.session_state.single_text_content = prompt_suggestion
             
             # 文字內容
             text_content = st.text_area(
                 "輸入文字內容",
-                value=default_text,
+                value=st.session_state.get('single_text_content', default_text),
                 height=200,
-                help="輸入要轉換為語音的文字"
+                help="輸入要轉換為語音的文字",
+                key="single_text_content"
             )
             
             # 如果有選擇風格，加入到提示中
@@ -405,18 +517,22 @@ def main():
             
             # 生成對話提示建議
             if st.button("生成對話建議"):
+                # 獲取當前文本框的內容
+                current_text = st.session_state.get('multi_text_content', '')
                 prompt_suggestion = generate_prompt_suggestion(
-                    "podcast" if example_category == "播客對話" else "education",
-                    speakers
+                    example_category,  # 直接傳遞範例類別
+                    speakers,
+                    current_text
                 )
-                default_text = prompt_suggestion
+                st.session_state.multi_text_content = prompt_suggestion
             
             # 對話內容
             text_content = st.text_area(
                 "輸入對話內容",
-                value=default_text,
+                value=st.session_state.get('multi_text_content', default_text),
                 height=300,
-                help=f"格式範例：\n{speakers[0]}：說話內容\n{speakers[1]}：回應內容"
+                help=f"格式範例：\n{speakers[0]}：說話內容\n{speakers[1]}：回應內容",
+                key="multi_text_content"
             )
     
     with col2:

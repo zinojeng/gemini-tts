@@ -116,18 +116,23 @@ def voice_selector_with_preview(
         st.markdown("<div style='margin-top: 28px;'></div>",
                     unsafe_allow_html=True)
         
-        # 創建一個唯一的 key 來追蹤按鈕點擊
+        # 創建唯一的 key
         button_key = f"preview_{key_suffix}"
+        audio_key = f"audio_{key_suffix}"
         
         if st.button("▶️", key=button_key, help=f"預覽 {voice_name} 的聲音"):
             # 檢查預先生成的檔案
             preview_dir = "voice_previews"
-            pregenerated_file = f"{preview_dir}/preview_{voice_name}_{language}.wav"
+            pregenerated_file = (
+                f"{preview_dir}/preview_{voice_name}_{language}.wav"
+            )
+            
+            audio_data = None
             
             # 優先使用預先生成的檔案
             if os.path.exists(pregenerated_file):
-                # 直接播放預先生成的檔案
-                st.audio(pregenerated_file, format='audio/wav')
+                with open(pregenerated_file, 'rb') as f:
+                    audio_data = f.read()
             else:
                 # 如果沒有預先生成的檔案，則使用原有的快取機制
                 preview_key = f"{voice_name}_{language}"
@@ -135,7 +140,8 @@ def voice_selector_with_preview(
                 
                 # 檢查檔案快取
                 if os.path.exists(cache_file):
-                    st.audio(cache_file, format='audio/wav')
+                    with open(cache_file, 'rb') as f:
+                        audio_data = f.read()
                 else:
                     # 需要生成預覽
                     with st.spinner("生成中..."):
@@ -146,10 +152,31 @@ def voice_selector_with_preview(
                         if audio_data:
                             # 儲存到檔案
                             save_func(cache_file, audio_data)
-                            # 播放音訊
-                            st.audio(cache_file, format='audio/wav')
                         else:
                             st.error("生成預覽失敗")
+            
+            # 如果有音訊數據，使用 HTML 和 JavaScript 自動播放
+            if audio_data:
+                import base64
+                audio_base64 = base64.b64encode(audio_data).decode()
+                
+                # 使用 HTML audio 元素並自動播放
+                audio_html = f"""
+                <audio id="{audio_key}" autoplay>
+                    <source src="data:audio/wav;base64,{audio_base64}" 
+                            type="audio/wav">
+                </audio>
+                <script>
+                    // 確保音訊播放
+                    var audio = document.getElementById('{audio_key}');
+                    if (audio) {{
+                        audio.play().catch(function(error) {{
+                            console.log('自動播放失敗:', error);
+                        }});
+                    }}
+                </script>
+                """
+                st.markdown(audio_html, unsafe_allow_html=True)
     
     return voice_name
 

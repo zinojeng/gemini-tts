@@ -20,9 +20,6 @@ virtualenv/
 # 輸出資料夾
 output/
 
-# 臨時預覽檔案資料夾
-temp_previews/
-
 # 音訊輸出檔案（但不包括 voice_previews 資料夾）
 *.wav
 *.pcm

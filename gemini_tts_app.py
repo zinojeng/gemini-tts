@@ -439,16 +439,16 @@ def main():
             api_key = st.text_input(
                 "Gemini API 金鑰（選填，留空使用環境變數）", 
                 type="password",
-                help="已從 .env 檔案載入 API 金鑰。如需使用其他金鑰，請在此輸入"
+                help="Gemini API from https://ai.google.dev/gemini-api/docs/api-key?hl=zh-tw"
             )
             # 如果使用者沒有輸入新的金鑰，使用環境變數的金鑰
             if not api_key:
                 api_key = default_api_key
         else:
             api_key = st.text_input(
-                "Gemini API 金鑰", 
+                "Gemini API 金鑰（必填）", 
                 type="password",
-                help="請輸入您的 Gemini API 金鑰，或在 .env 檔案中設定 GEMINI_API_KEY"
+                help="Gemini API from https://ai.google.dev/gemini-api/docs/api-key?hl=zh-tw"
             )
         
         # 模型選擇
@@ -492,6 +492,14 @@ def main():
         3. 選擇語音和設定參數
         4. 輸入或生成文字內容
         5. 點擊「生成語音」
+        """)
+        
+        st.markdown("---")
+        st.markdown("### 👨‍⚕️ 作者資訊")
+        st.markdown("""
+        **Tseng Yao Hsien, MD**  
+        Endocrinologist  
+        Tungs' Taichung MetroHarbor Hospital
         """)
     
     # 初始化變數

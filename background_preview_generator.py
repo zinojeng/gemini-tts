@@ -32,7 +32,6 @@ def start_background_generation(
     def generate_all_previews():
         """在背景執行緒中生成預覽"""
         for voice in voice_options:
-            preview_key = f"{voice}_{language}"
             preview_filename = f"preview_{voice}_{language}.wav"
             
             # 檢查是否已存在
@@ -49,12 +48,8 @@ def start_background_generation(
                         # 儲存檔案
                         save_wave_func(preview_filename, preview_audio)
                         
-                        # 更新 session_state（如果可用）
-                        if hasattr(st, 'session_state'):
-                            if 'voice_previews' not in st.session_state:
-                                st.session_state.voice_previews = {}
-                            st.session_state.voice_previews[preview_key] = \
-                                preview_filename
+                        # 移除對 st.session_state 的直接存取
+                        # 這會在背景執行緒中造成警告
                         
                         # 短暫延遲，避免過度使用 API
                         time.sleep(0.5)

@@ -151,9 +151,17 @@ git commit -m "Add voice previews for <language>"
 git push
 ```
 
-**Start Command** (auto-detected by Zeabur for Streamlit apps):
+**Zeabur Configuration File** ([zbpack.json](zbpack.json)):
+```json
+{
+  "start_command": "streamlit run gemini_tts_app.py --server.port $PORT --server.address 0.0.0.0 --server.headless true"
+}
+```
+This file is **required** and tells Zeabur how to start the Streamlit application. Without it, Zeabur may try to run `main.py` which doesn't exist.
+
+**Start Command** (configured in zbpack.json):
 ```bash
-streamlit run gemini_tts_app.py --server.port $PORT --server.address 0.0.0.0
+streamlit run gemini_tts_app.py --server.port $PORT --server.address 0.0.0.0 --server.headless true
 ```
 
 **Required Environment Variables** (configure in Zeabur dashboard):
@@ -396,6 +404,19 @@ preview_{voice}_{language}.wav  # Ephemeral - generated at runtime if voice_prev
 - Ensure using supported models: `gemini-2.5-flash-preview-tts` or `gemini-2.5-pro-preview-tts`
 
 ### Zeabur-Specific Issues
+
+**Problem**: `python: can't open file '/app/main.py': [Errno 2] No such file or directory`
+- **Cause**: Missing `zbpack.json` configuration file
+- **Solution**:
+  1. Create `zbpack.json` in repository root with correct start command
+  2. Commit and push: `git add zbpack.json && git commit -m "Add Zeabur config" && git push`
+  3. Redeploy from Zeabur dashboard
+- **File content**:
+  ```json
+  {
+    "start_command": "streamlit run gemini_tts_app.py --server.port $PORT --server.address 0.0.0.0 --server.headless true"
+  }
+  ```
 
 **Problem**: Voice previews regenerate every time (slow cold start)
 - **Cause**: `voice_previews/` directory not committed to repository
